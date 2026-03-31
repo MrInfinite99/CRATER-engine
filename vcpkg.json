@@ -1,0 +1,16 @@
+{
+  "dependencies": [
+    "glm",
+    {
+      "name": "sdl3",
+      "features": [
+        "vulkan"
+      ]
+    },
+    "imgui",
+    "stb",
+    "vulkan",
+    "tinyobjloader",
+    "entt"
+  ]
+}

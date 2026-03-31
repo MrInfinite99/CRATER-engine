@@ -1,0 +1,77 @@
+#pragma once
+
+#include <glm/glm.hpp>
+#include <glm/gtc/quaternion.hpp>
+#include <glm/gtc/matrix_transform.hpp>
+#include <string>
+
+namespace CRATER::Scene {
+
+	// Simple, data-only components for an entt-based ECS
+
+	struct TagComponent {
+		std::string tag;
+	};
+
+	struct UUIDComponent {
+		uint64_t id = 0;
+	};
+
+	struct TransformComponent {
+		glm::vec3 position{0.0f};
+		glm::quat rotation{1.0f, 0.0f, 0.0f, 0.0f};
+		glm::vec3 scale{1.0f};
+
+		mutable glm::mat4 transformMatrix{1.0f};
+		mutable bool transformDirty = true;
+
+		void SetPosition(const glm::vec3& pos) { position = pos; transformDirty = true; }
+		void SetRotation(const glm::quat& rot) { rotation = rot; transformDirty = true; }
+		void SetScale(const glm::vec3& scl) { scale = scl; transformDirty = true; }
+
+		const glm::vec3& GetPosition() const { return position; }
+		const glm::quat& GetRotation() const { return rotation; }
+		const glm::vec3& GetScale() const { return scale; }
+
+		glm::mat4 GetTransformMatrix() const {
+			if (transformDirty) {
+				glm::mat4 translation = glm::translate(glm::mat4(1.0f), position);
+				glm::mat4 rotationMat = glm::mat4_cast(rotation);
+				glm::mat4 scaleMat = glm::scale(glm::mat4(1.0f), scale);
+				transformMatrix = translation * rotationMat * scaleMat;
+				transformDirty = false;
+			}
+			return transformMatrix;
+		}
+	};
+
+	// Mesh and material are represented by resource identifiers (strings) so the component
+	// does not depend on concrete resource types. Rendering should be implemented in a system.
+	struct MeshComponent {
+		std::string meshID;
+		std::string materialID;
+	};
+
+	struct CameraComponent {
+		float fieldOfView = 45.0f;
+		float aspectRatio = 16.0f / 9.0f;
+		float nearPlane = 0.1f;
+		float farPlane = 1000.0f;
+
+		mutable glm::mat4 projectionMatrix{1.0f};
+		mutable bool projectionDirty = true;
+
+		void SetPerspective(float fov, float aspect, float nearP, float farP) {
+			fieldOfView = fov; aspectRatio = aspect; nearPlane = nearP; farPlane = farP; projectionDirty = true;
+		}
+
+		glm::mat4 GetProjectionMatrix() const {
+			if (projectionDirty) {
+				projectionMatrix = glm::perspective(glm::radians(fieldOfView), aspectRatio, nearPlane, farPlane);
+				projectionDirty = false;
+			}
+			return projectionMatrix;
+		}
+	};
+
+}
