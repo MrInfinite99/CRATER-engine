@@ -1,28 +1,34 @@
 #include "engine.h"
 
 namespace CRATER {
-	Engine::Engine() {
-		// Initialize subsystems here (e.g. window, renderer, resource manager)
-	}
-	Engine::~Engine() {
-		// Clean up subsystems here
-	}
-	
-	void Engine::init() {
-		// Initialize the engine (e.g. create window, initialize renderer)
-	}
-
+	 
 	void Engine::mainLoop() {
+		SDL_Event e;
 		// Main game loop
 		bool running = true;
 		while (running) {
 			// Handle input/events
 			// Update scene
 			// Render scene
+			while (SDL_PollEvent(&e)) {
+				// close the window when user alt-f4s or clicks the X button
+				if (e.type == SDL_EVENT_QUIT) {
+					running = false;
+				}
+				else if (e.type == SDL_EVENT_WINDOW_RESIZED) {
+					renderer->resized();
+				}
+
+
+			}
+			renderer->render();
 		}
+	 
+		renderer->wait();
 	}
 
 	void Engine::cleanup() {
 		// Clean up resources and subsystems
+		renderer->cleanUp();
 	}
 }

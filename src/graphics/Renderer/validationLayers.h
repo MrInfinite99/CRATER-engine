@@ -17,7 +17,7 @@ namespace CRATER::Renderer
 {
 	class ValidationLayers {
 	private:
-		const std::vector<const char*> validationLayers = {
+		const std::vector<const char*> VALIDATION_LAYERS = {
 			"VK_LAYER_KHRONOS_validation"
 		};
 
@@ -26,7 +26,11 @@ namespace CRATER::Renderer
 
 	public:
 		ValidationLayers(bool enable) :enableValidationLayers{ enable } {};
-		~ValidationLayers();
+		~ValidationLayers() = default;
+
+		ValidationLayers() {
+			enableValidationLayers = true;
+		}
 
 		void enable(bool toggle) {
 			enableValidationLayers = toggle;
@@ -40,7 +44,7 @@ namespace CRATER::Renderer
 			//get the required layers
 			std::vector<char const*> requiredLayers;
 			if (enableValidationLayers) {
-				requiredLayers.assign(validationLayers.begin(), validationLayers.end());
+				requiredLayers.assign(VALIDATION_LAYERS.begin(), VALIDATION_LAYERS.end());
 			}
 
 			// Check if the required layers are supported by the Vulkan implementation.

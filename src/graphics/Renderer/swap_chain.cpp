@@ -1,27 +1,7 @@
 #include"swap_chain.h"
 
 namespace CRATER::Renderer {
-	void VulkanSwapChain::createSwapChain(vk::raii::PhysicalDevice& physicalDevice,vk::raii::SurfaceKHR& surface,Window& window) {
-		vk::SurfaceCapabilitiesKHR surfaceCapabilities = physicalDevice.getSurfaceCapabilitiesKHR(*surface);
-		swapChainExtent = chooseSwapExtent(surfaceCapabilities,window);
-		uint32_t minImageCount = chooseSwapMinImageCount(surfaceCapabilities);
-
-		std::vector<vk::SurfaceFormatKHR> availableFormats = physicalDevice.getSurfaceFormatsKHR(*surface);
-		swapChainSurfaceFormat = chooseSwapSurfaceFormat(availableFormats);
-
-		vk::SwapchainCreateInfoKHR swapChainCreateInfo{ .surface = *surface,
-											   .minImageCount = minImageCount,
-											   .imageFormat = swapChainSurfaceFormat.format,
-											   .imageColorSpace = swapChainSurfaceFormat.colorSpace,
-											   .imageExtent = swapChainExtent,
-											   .imageArrayLayers = 1,
-											   .imageUsage = vk::ImageUsageFlagBits::eColorAttachment,
-											   .imageSharingMode = vk::SharingMode::eExclusive,
-											   .preTransform = surfaceCapabilities.currentTransform,
-											   .compositeAlpha = vk::CompositeAlphaFlagBitsKHR::eOpaque,
-											   .presentMode = chooseSwapPresentMode(physicalDevice.getSurfacePresentModesKHR(surface)),
-											   .clipped = true };
-	} 
+	
 
 	 
 
@@ -68,14 +48,39 @@ namespace CRATER::Renderer {
 		return minImageCount;
 	}
 
+	void VulkanSwapChain::createSwapChain(vk::raii::Device& device,vk::raii::PhysicalDevice& physicalDevice, vk::raii::SurfaceKHR& surface, Window& window) {
+		vk::SurfaceCapabilitiesKHR surfaceCapabilities = physicalDevice.getSurfaceCapabilitiesKHR(*surface);
+		swapChainExtent = chooseSwapExtent(surfaceCapabilities, window);
+		uint32_t minImageCount = chooseSwapMinImageCount(surfaceCapabilities);
 
-	void VulkanSwapChain::createImageViews(vk::raii::Device& device) {
+		std::vector<vk::SurfaceFormatKHR> availableFormats = physicalDevice.getSurfaceFormatsKHR(*surface);
+		swapChainSurfaceFormat = chooseSwapSurfaceFormat(availableFormats);
+		swapChainImageFormat = swapChainSurfaceFormat.format;
+		vk::SwapchainCreateInfoKHR swapChainCreateInfo{ .surface = *surface,
+											   .minImageCount = minImageCount,
+											   .imageFormat = swapChainSurfaceFormat.format,
+											   .imageColorSpace = swapChainSurfaceFormat.colorSpace,
+											   .imageExtent = swapChainExtent,
+											   .imageArrayLayers = 1,
+											   .imageUsage = vk::ImageUsageFlagBits::eColorAttachment,
+											   .imageSharingMode = vk::SharingMode::eExclusive,
+											   .preTransform = surfaceCapabilities.currentTransform,
+											   .compositeAlpha = vk::CompositeAlphaFlagBitsKHR::eOpaque,
+											   .presentMode = chooseSwapPresentMode(physicalDevice.getSurfacePresentModesKHR(surface)),
+											   .clipped = true };
+
+		swapChain = vk::raii::SwapchainKHR(device, swapChainCreateInfo);
+		swapChainImages = swapChain.getImages();
+	}
+
+
+	void VulkanSwapChain::createImageViews(vk::raii::Device& device, uint32_t mipLevels) {
 		assert(swapChainImageViews.empty());
 
 		vk::ImageViewCreateInfo imageViewCreateInfo{ .viewType = vk::ImageViewType::e2D,
 													 .format = swapChainSurfaceFormat.format,
 													 .subresourceRange = { vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1 } };
-
+		imageViewCreateInfo.subresourceRange.levelCount = mipLevels;
 		imageViewCreateInfo.components = {
 		vk::ComponentSwizzle::eIdentity, vk::ComponentSwizzle::eIdentity, vk::ComponentSwizzle::eIdentity, vk::ComponentSwizzle::eIdentity };
 
@@ -92,4 +97,8 @@ namespace CRATER::Renderer {
 			swapChainImageViews.emplace_back(device, imageViewCreateInfo);
 		}
 	}
+	
+
+
+
 }

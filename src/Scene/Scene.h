@@ -19,7 +19,7 @@ namespace CRATER::Scene {
 
 		Entity CreateEntity() {
 			entt::entity e = m_Registry.create();
-			return Entity(e, this);
+			return Entity(e, &this->m_Registry);
 		}
 
 		void DestroyEntity(Entity entity) {
@@ -50,8 +50,7 @@ namespace CRATER::Scene {
 		//	m_Systems.push_back(std::make_unique<CRATER::Renderer::RenderSystem>(renderer, resources));
 		//}
 
-		// expose registry for systems that need it
-		entt::registry& Registry() { return m_Registry; }
+		 
 
 	private:
 		entt::registry m_Registry;

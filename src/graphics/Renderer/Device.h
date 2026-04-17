@@ -24,19 +24,23 @@ namespace CRATER::Renderer
 
         vk::raii::PhysicalDevice& physicalDevice() { return m_physicalDevice; }
         vk::raii::Device& logicalDevice() { return m_device; }
-        vk::raii::Queue& queue() { return m_queueIndex; }
+        std::optional<vk::raii::Queue>& queue() { return m_graphicsQueue; }
+        std::optional<vk::raii::Queue>& presentqueue() { return m_presentQueue; }
         uint32_t graphicsIndex() const { return m_graphicsIndex; }
 
         vk::raii::CommandPool& commandPool() { return m_commandPool; }
 
-        void waitIdle() { if (m_device) m_device.waitIdle(); }
+       // void waitIdle() { if (m_device) m_device.waitIdle(); }
 
     private:
         vk::raii::PhysicalDevice m_physicalDevice{ nullptr };
         vk::raii::Device m_device{ nullptr };
-        vk::raii::Queue m_queueIndex {nullptr };
+       // vk::rai m_queueIndex {nullptr };
         uint32_t m_graphicsIndex{ 0 };
+        uint32_t m_presentIndex{ 0 };
         vk::raii::CommandPool m_commandPool{ nullptr };
+        std::optional<vk::raii::Queue> m_graphicsQueue;
+        std::optional<vk::raii::Queue> m_presentQueue;
     };
 
 }

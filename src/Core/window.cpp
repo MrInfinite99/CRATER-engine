@@ -1,7 +1,7 @@
 #include "window.h"
 
 namespace CRATER {
-	Window::Window(const char* title, int width, int height) : m_width(width), m_height(height) {
+	Window::Window(const char* title, int width, int height){
 		m_window = SDL_CreateWindow(title,width, height, SDL_WINDOW_VULKAN|SDL_WINDOW_RESIZABLE);
 		if (!m_window) {
 			throw std::runtime_error(std::string("Window error: ") + SDL_GetError());
@@ -16,6 +16,10 @@ namespace CRATER {
 	}
 
 	void Window::init(const char* title, int width, int height) {
+		if (!SDL_Init(SDL_INIT_VIDEO)) {
+			throw std::runtime_error("Failed to initialize SDL");
+		}
+
 		m_window = SDL_CreateWindow(title, width, height, SDL_WINDOW_VULKAN | SDL_WINDOW_RESIZABLE);
 		if (!m_window) {
 			throw std::runtime_error(std::string("Window error: ") + SDL_GetError());

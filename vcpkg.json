@@ -1,16 +1,19 @@
 {
   "dependencies": [
+    "entt",
     "glm",
+    "imgui",
     {
       "name": "sdl3",
       "features": [
         "vulkan"
       ]
     },
-    "imgui",
     "stb",
-    "vulkan",
     "tinyobjloader",
-    "entt"
+    "vulkan",
+    "vulkan-memory-allocator-hpp",
+    "spirv-headers"
+    
   ]
 }

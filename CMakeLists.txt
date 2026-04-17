@@ -9,10 +9,11 @@ if (POLICY CMP0141)
   set(CMAKE_MSVC_DEBUG_INFORMATION_FORMAT "$<IF:$<AND:$<C_COMPILER_ID:MSVC>,$<CXX_COMPILER_ID:MSVC>>,$<$<CONFIG:Debug,RelWithDebInfo>:EditAndContinue>,$<$<CONFIG:Debug,RelWithDebInfo>:ProgramDatabase>>")
 endif()
 
-project ("VkRE")
+project ("CRATER")
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_EXTENSIONS OFF)
 
 find_package(Vulkan REQUIRED)
 find_package(SDL3  CONFIG REQUIRED)
@@ -20,18 +21,64 @@ find_package(tinyobjloader CONFIG REQUIRED)
 find_package(imgui  CONFIG REQUIRED)
 find_package(glm  CONFIG REQUIRED)
 find_package(EnTT CONFIG REQUIRED)
-
+find_package(VulkanMemoryAllocator CONFIG REQUIRED)
+find_package(SPIRV-Headers CONFIG REQUIRED)
 
 # Add source to this project's executable.
-add_executable (VkRE "src/main.cpp" "src/Scene/Scene.cpp"  "src/Core/engine.h" "src/Core/engine.cpp" "src/Core/window.h" "src/Core/window.cpp" "src/Renderer/renderer.h" "src/Renderer/renderer.cpp" "src/Renderer/validationLayers.h"  "src/Renderer/swap_chain.h" "src/Renderer/swap_chain.cpp")
+ 
 
-target_include_directories(VkRE PUBLIC
-    "${CMAKE_CURRENT_SOURCE_DIR}"
+ set(CORE
+    src/Core/engine.cpp
+    src/Core/window.cpp
+)
+
+set(RENDERER
+    src/graphics/Renderer/Device.cpp
+    src/graphics/Renderer/graphics_pipeline.cpp 
+    src/graphics/Renderer/renderer.cpp 
+    src/graphics/Renderer/swap_chain.cpp 
+    src/graphics/Renderer/descriptor_set.cpp 
+     
+)
+
+set(RESOURCES 
+    src/graphics/Resources/shaders/shader_compile.cpp 
+    src/graphics/Resources/vertex_buffer.cpp  
+    src/graphics/Resources/index_buffer.cpp  
+    src/graphics/Resources/textures/texture.cpp  
+      
+)
+
+set(SCENE
+    src/Scene/Scene.cpp
+    src/Scene/RenderSystem.cpp
+)
+
+set(EXTERNAL
+    src/external/vma.cpp
+    src/external/spirv_reflect.cpp 
+    src/external/stb_image.cpp
+    src/external/tiny_obj_loader.cpp 
+)
+
+
+add_executable(${PROJECT_NAME}
+    src/main.cpp
+    ${CORE}
+    ${RENDERER}
+    ${RESOURCES}
+    ${SCENE}
+    ${EXTERNAL}
+)
+
+
+target_include_directories(${PROJECT_NAME} PRIVATE
+    ${CMAKE_SOURCE_DIR}/src
    
 )
 
 # Link all required libraries
-target_link_libraries(VkRE
+target_link_libraries(${PROJECT_NAME}
     PRIVATE
         Vulkan::Vulkan
     
@@ -39,7 +86,8 @@ target_link_libraries(VkRE
         glm::glm
         imgui::imgui
         EnTT::EnTT
-        
+        GPUOpen::VulkanMemoryAllocator 
+        SPIRV-Headers::SPIRV-Headers
 )
 
 
