@@ -11,8 +11,91 @@
 #include"../Resources/textures/texture.h"
 #include"../Resources/models/model.h"
 #include"../constants.h"
+#include"../../Scene/Scene.h"
+ 
+
+namespace CRATER::Renderer {
+	
+
+	struct Material {
+		ResourceManager::ShaderCompiler shaderCompiler{};
+		VulkanGraphicsPipeline graphicsPipeline{};
+		DescriptorSet descriptorSets{};
+		PushConstant pushConstant{};
+
+		void init(vk::raii::Device& device,
+			VulkanSwapChain& swapChain,
+			const std::string& shaderPath,
+			vk::Format format) {
+			auto shaderCode = shaderCompiler.compileShader(shaderPath, "vertMain", "fragMain");
+
+			descriptorSets.reflectShader(shaderCode);
+			 
+			pushConstant.reflectShader(shaderCode);
+			descriptorSets.build(device);
+
+			graphicsPipeline.createPipeline(
+				device,
+				swapChain.extent(),
+				swapChain.format(),
+				swapChain.surfaceFormat(),
+				shaderCode,
+				descriptorSets,
+				pushConstant,
+				format);
+		}
+
+		template<typename T>
+		void updateDescriptors(vk::raii::Device& device,
+			uint32_t frameIndex,
+			ResourceManager::VulkanUniformBuffer<T>& uniformBuffer,
+			ResourceManager::Texture& texture) 
+		
+		{
+			vk::DescriptorBufferInfo bInfo{
+				uniformBuffer[frameIndex].buffer(),
+				0,
+				sizeof(UniformBufferObject)
+			};
+			descriptorSets.updateBuffer(device, frameIndex, "ubo", bInfo);
+
+			vk::DescriptorImageInfo iInfo{
+				texture.sampler(),
+				texture.view(),
+				vk::ImageLayout::eShaderReadOnlyOptimal
+			};
+			descriptorSets.updateImage(device, frameIndex, "texture", iInfo);
+		}
+
+		
+
+	};
+
+	struct Mesh {
+		ResourceManager::VulkanVertexBuffer vertexBuffer;
+		ResourceManager::VulkanIndexBuffer indexBuffer;
+	};
+
+	struct RenderObject {
+		glm::vec3 position = { 0.0f,0.0f,0.0f };
+		glm::quat rotation{ 1.0f, 0.0f, 0.0f, 0.0f };
+		glm::vec3 scale = { 1.0f, 1.0f, 1.0f };
 
 
+		Mesh* mesh;
+		Material* material;
+
+		glm::mat4 getModelMatrix() const {
+			glm::mat4 model = glm::translate(glm::mat4(1.0f), position);
+			model = model * glm::mat4_cast(rotation); // Convert Quat to Mat4 correctly
+			model = glm::scale(model, scale);
+			return model;
+		}
+	};
+}
+
+
+ 
 
 namespace CRATER::Renderer
 {
@@ -29,46 +112,57 @@ namespace CRATER::Renderer
 
 			m_swapChain.createSwapChain(m_device.logicalDevice(),m_device.physicalDevice(), m_surface, m_window);
 			m_swapChain.createImageViews(m_device.logicalDevice(),1);
-
-			auto shaderCode = shaderCompiler.compileShader(shader_path, "vertMain", "fragMain");
-
-			descriptorSets.reflectShader(shaderCode);
-			descriptorSets.build(m_device.logicalDevice());
-			m_graphicsPipeline.createPipeline(m_device.logicalDevice(),
-				m_swapChain.extent(),
-				m_swapChain.format(),
-				m_swapChain.surfaceFormat(),
-				shaderCode,
-				vertexBuffer,
-				descriptorSets,
-				texture.findDepthFormat(m_device));
-
+			
 			createCommandPool();
-			texture.createDepthResources(m_device,m_swapChain.extent());
-			texture.createTexture(texture_path,m_allocator,m_device);
-			model.load(model_path);
-			vertexBuffer.createVertexBuffer(model.getVertices(),m_allocator,m_device);
-			indexBuffer.createIndexBuffer(model.getIndices(),m_allocator, m_device);
+			depthtexture.createDepthResources(m_device, m_swapChain.extent());
 			uniformBuffer.createUniformBuffer(m_allocator, m_device);
-
-			//update descriptor set
-			for (uint32_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
-				vk::DescriptorBufferInfo bInfo{ uniformBuffer[i].buffer(), 0, sizeof(UniformBufferObject) };
-				descriptorSets.updateBuffer(m_device.logicalDevice(), i, "ubo", bInfo);
-
-				vk::DescriptorImageInfo iInfo{ texture.sampler(), texture.view(), vk::ImageLayout::eShaderReadOnlyOptimal};
-				descriptorSets.updateImage(m_device.logicalDevice(), i, "texture", iInfo);
-			}
-
 
 			createCommandBuffer();
 
 			createSyncObjects();
+
 		};
+
+		void setup(CRATER::Scene::Scene& scene) {
+			 
+			auto view = scene.getRegistry().view<
+				CRATER::Scene::TransformComponent,
+				CRATER::Scene::MeshComponent,
+				CRATER::Scene::MaterialComponent
+				> ();
+
+
+			view.each([&](
+				CRATER::Scene::TransformComponent& transform,
+				CRATER::Scene::MeshComponent& meshComp,
+				CRATER::Scene::MaterialComponent& materialComp) {
+
+					Material* material = createMaterial(materialComp.materialID, materialComp.materialPath, materialComp.texturePath);
+					Mesh* mesh = createMesh(meshComp.meshID,meshComp.modelPath);
+
+					RenderObject renderObj;
+					renderObj.mesh = mesh;
+					renderObj.material = material;
+					renderObj.position = transform.position;
+					renderObj.rotation = transform.rotation;
+					renderObj.scale = transform.scale;
+ 
+					renderObjects.push_back(std::move(renderObj));
+				}
+			);
+		
+			//update descriptor set
+			for (auto& [name, material] : materials) {
+				for (uint32_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
+					materials[name]->updateDescriptors(m_device.logicalDevice(), i, uniformBuffer,*textures[name]);
+				}
+			}
+			
+		}
 
 		 
 
-		void render();
+		void render(CRATER::Scene::Scene& scene);
 
 		void wait() {
 			m_device.logicalDevice().waitIdle();
@@ -101,6 +195,8 @@ namespace CRATER::Renderer
 		void createSyncObjects();
 		void initAllocator();
 		
+		Material* createMaterial(const std::string& matID, const std::string& matPath,const std::string& texPath);
+		Mesh* createMesh(const std::string& meshID, const std::string& meshPath);
 
 		void transition_image_layout(
 			vk::Image image,
@@ -123,9 +219,7 @@ namespace CRATER::Renderer
 		Window m_window{ "CRATER", WIDTH, HEIGHT };
 		vk::raii::SurfaceKHR m_surface{ nullptr };
 		VulkanSwapChain m_swapChain{};
-		
-		VulkanGraphicsPipeline m_graphicsPipeline{};
-
+	 
 		vk::raii::CommandPool m_commandPool{ nullptr };
 
 		VmaAllocatorRAII m_allocator;
@@ -142,15 +236,14 @@ namespace CRATER::Renderer
 		uint32_t frameIndex = 0;
 
 		bool framebufferResized = false;
-		
-		ResourceManager::ShaderCompiler shaderCompiler{};
-		ResourceManager::VulkanVertexBuffer vertexBuffer{};
-		ResourceManager::VulkanIndexBuffer indexBuffer{};
-		ResourceManager::Texture texture{};
-		ResourceManager::VulkanUniformBuffer<UniformBufferObject> uniformBuffer{};
-		ResourceManager::Model model;
 
-		DescriptorSet descriptorSets{};
-		
+		ResourceManager::VulkanUniformBuffer<UniformBufferObject> uniformBuffer{};
+	  
+		ResourceManager::Texture depthtexture{};
+		PushConstant pushConstant{};
+		std::vector<RenderObject> renderObjects;
+		std::unordered_map<std::string, std::unique_ptr<Mesh>> meshes;
+		std::unordered_map<std::string, std::unique_ptr<Material>> materials;
+		std::unordered_map<std::string, std::unique_ptr<ResourceManager::Texture>> textures;
 	};
 }

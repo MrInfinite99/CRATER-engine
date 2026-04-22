@@ -4,6 +4,7 @@
 #include <glm/gtc/quaternion.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 #include <string>
+#include"systems/camera_system.h"
 
 namespace CRATER::Scene {
 
@@ -43,35 +44,30 @@ namespace CRATER::Scene {
 			}
 			return transformMatrix;
 		}
+
+		TransformComponent(
+			const glm::vec3& pos,
+			const glm::quat& rot,
+			const glm::vec3& scl
+		) : position(pos), rotation(rot), scale(scl) {
+		}
 	};
 
 	// Mesh and material are represented by resource identifiers (strings) so the component
 	// does not depend on concrete resource types. Rendering should be implemented in a system.
 	struct MeshComponent {
 		std::string meshID;
+		std::string modelPath;
+		 
+	};
+
+	struct MaterialComponent {
 		std::string materialID;
+		std::string materialPath;
+		std::string texturePath;
+
 	};
 
-	struct CameraComponent {
-		float fieldOfView = 45.0f;
-		float aspectRatio = 16.0f / 9.0f;
-		float nearPlane = 0.1f;
-		float farPlane = 1000.0f;
-
-		mutable glm::mat4 projectionMatrix{1.0f};
-		mutable bool projectionDirty = true;
-
-		void SetPerspective(float fov, float aspect, float nearP, float farP) {
-			fieldOfView = fov; aspectRatio = aspect; nearPlane = nearP; farPlane = farP; projectionDirty = true;
-		}
-
-		glm::mat4 GetProjectionMatrix() const {
-			if (projectionDirty) {
-				projectionMatrix = glm::perspective(glm::radians(fieldOfView), aspectRatio, nearPlane, farPlane);
-				projectionDirty = false;
-			}
-			return projectionMatrix;
-		}
-	};
+ 
 
 }

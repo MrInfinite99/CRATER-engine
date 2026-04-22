@@ -4,7 +4,7 @@
 #include <vector>
 #include <memory>
 #include "Entity.h"
-#include "System.h"
+#include "systems/camera_system.h"
  
 
 namespace CRATER::Scene {
@@ -27,22 +27,21 @@ namespace CRATER::Scene {
 		}
 
 		void Update(float deltaTime) {
-			for (auto& system : m_Systems)
-				system->update(deltaTime, *this);
+			 
 		}
 
-		void Render() {
-			for (auto& system : m_Systems)
-				; // Rendering systems will be executed via Update or separate ordering
+		void processEvents(SDL_Event& event,float deltaTime) {
+			cameraSystem.processInput(event, deltaTime);
 		}
 
-		void Initialize() {
-			for (auto& system : m_Systems)
-				system->init();
+		 
+		auto& getCamera() {
+			return cameraSystem;
 		}
 
-		void AddSystem(std::unique_ptr<System> system) {
-			m_Systems.push_back(std::move(system));
+		void initialize(glm::vec3 position, glm::vec3 up,float yaw,float pitch) {
+
+			cameraSystem.init(position, up, yaw, pitch);
 		}
 
 		// helper to add a RenderSystem backed by the provided renderer & resource manager
@@ -54,7 +53,7 @@ namespace CRATER::Scene {
 
 	private:
 		entt::registry m_Registry;
-		std::vector<std::unique_ptr<System>> m_Systems;
+		CameraSystem cameraSystem;
 	};
 
 }

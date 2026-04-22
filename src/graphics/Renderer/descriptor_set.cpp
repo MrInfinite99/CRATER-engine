@@ -104,3 +104,59 @@ namespace CRATER::Renderer {
 
 
 }
+
+namespace CRATER::Renderer {
+	void PushConstant::reflectShader(const std::vector<char>& spirvCode) {
+		SpvReflectShaderModule module;
+		SpvReflectResult result = spvReflectCreateShaderModule(
+			spirvCode.size(),  // Just the byte count
+			spirvCode.data(),
+			&module
+		);
+
+		if (result != SPV_REFLECT_RESULT_SUCCESS) {
+			throw std::runtime_error("Failed to create SPIRV reflection module");
+		}
+
+		uint32_t pushConstantCount = 0;
+		result = spvReflectEnumeratePushConstantBlocks(&module, &pushConstantCount, nullptr);
+
+		if (result != SPV_REFLECT_RESULT_SUCCESS) {
+			spvReflectDestroyShaderModule(&module);
+			throw std::runtime_error("Failed to enumerate push constant blocks");
+		}
+
+		if (pushConstantCount > 0) {
+			std::vector<SpvReflectBlockVariable*> pushConstants(pushConstantCount);
+			result = spvReflectEnumeratePushConstantBlocks(&module, &pushConstantCount, pushConstants.data());
+
+			if (result != SPV_REFLECT_RESULT_SUCCESS) {
+				spvReflectDestroyShaderModule(&module);
+				throw std::runtime_error("Failed to get push constant blocks");
+			}
+
+			// We expect only one push constant block
+			if (pushConstantCount > 1) {
+				std::cerr << "Warning: Multiple push constant blocks found, using the first one\n";
+			}
+
+			const SpvReflectBlockVariable* block = pushConstants[0];
+
+			m_name = block->name ? block->name : "PushConstant";
+			m_offset = block->offset;
+			m_size = block->size;
+
+		 
+
+			// Create Vulkan range
+			m_range.stageFlags = static_cast<vk::ShaderStageFlags>(module.shader_stage);
+			m_range.offset = m_offset;
+			m_range.size = m_size;
+
+			std::cout << "Reflected push constant: " << m_name
+				<< " (size: " << m_size << " bytes, offset: " << m_offset << ")\n";
+		}
+	 
+		spvReflectDestroyShaderModule(&module);
+	}
+}

@@ -3,6 +3,7 @@
 namespace CRATER {
 	Window::Window(const char* title, int width, int height){
 		m_window = SDL_CreateWindow(title,width, height, SDL_WINDOW_VULKAN|SDL_WINDOW_RESIZABLE);
+		//SDL_SetWindowRelativeMouseMode(m_window, true);
 		if (!m_window) {
 			throw std::runtime_error(std::string("Window error: ") + SDL_GetError());
 		}

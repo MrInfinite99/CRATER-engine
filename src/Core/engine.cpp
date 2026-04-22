@@ -2,26 +2,29 @@
 
 namespace CRATER {
 	 
-	void Engine::mainLoop() {
+	void Engine::mainLoop(CRATER::Scene::Scene& scene) {
 		SDL_Event e;
-		// Main game loop
 		bool running = true;
+
+
+		auto lastTime = std::chrono::high_resolution_clock::now();
+
+
 		while (running) {
 			// Handle input/events
 			// Update scene
 			// Render scene
+			auto currentTime = std::chrono::high_resolution_clock::now();
+			float deltaTime = std::chrono::duration<float>(currentTime - lastTime).count();
+			lastTime = currentTime;
+
 			while (SDL_PollEvent(&e)) {
-				// close the window when user alt-f4s or clicks the X button
 				if (e.type == SDL_EVENT_QUIT) {
 					running = false;
 				}
-				else if (e.type == SDL_EVENT_WINDOW_RESIZED) {
-					renderer->resized();
-				}
-
-
+				processInput(e,scene,deltaTime);
 			}
-			renderer->render();
+			renderer->render(scene);
 		}
 	 
 		renderer->wait();
@@ -30,5 +33,16 @@ namespace CRATER {
 	void Engine::cleanup() {
 		// Clean up resources and subsystems
 		renderer->cleanUp();
+	}
+
+	void Engine::processInput(SDL_Event& e,CRATER::Scene::Scene& scene,float deltaTime) {
+		// close the window when user alt-f4s or clicks the X button
+		
+		if (e.type == SDL_EVENT_WINDOW_RESIZED) {
+			renderer->resized();
+		}
+
+		scene.processEvents(e, deltaTime);
+
 	}
 }

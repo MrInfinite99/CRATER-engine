@@ -3,7 +3,7 @@
 #include<string>
 #include<fstream>
 
-namespace CRATER {
+namespace CRATER::ResourceManager {
 	class ResourceManager {
 	public:
 		 

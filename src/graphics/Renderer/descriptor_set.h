@@ -56,5 +56,29 @@ namespace CRATER::Renderer {
 		//void createDescriptorSetLayout(vk::raii::Device& device);
 
 	};
+
+	class PushConstant {
+	public:
+		void reflectShader(const std::vector<char>& spirvCode);
+
+		const vk::PushConstantRange& getRange() const { return m_range; }
+ 
+		uint32_t getSize() const { return m_size; }
+
+		// Get offset
+		uint32_t getOffset() const { return m_offset; }
+ 
+		bool exists() const { return m_size > 0; }
+
+		// Debug info
+		std::string getName() const { return m_name; }
+	private:
+		 
+		vk::PushConstantRange m_range{};
+	 
+		uint32_t m_size = 0;
+		uint32_t m_offset = 0;
+		std::string m_name;
+	};
 };
 

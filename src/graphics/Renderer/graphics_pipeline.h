@@ -19,13 +19,13 @@ namespace CRATER::Renderer {
 
 		 
 
-		void createPipeline(vk::raii::Device& device, vk::Extent2D& swapChainExtent, vk::Format& swapChainImageFormat, vk::SurfaceFormatKHR   swapChainSurfaceFormat,const std::vector<char>& code, ResourceManager::VulkanVertexBuffer& vertex, DescriptorSet& descriptorSets,vk::Format depthFormat);
+		void createPipeline(vk::raii::Device& device, vk::Extent2D& swapChainExtent, vk::Format& swapChainImageFormat, vk::SurfaceFormatKHR   swapChainSurfaceFormat,const std::vector<char>& code, DescriptorSet& descriptorSets,PushConstant& pushConstant,vk::Format depthFormat);
 		 
-		const vk::raii::Pipeline& pipeline() const {
+	     const vk::raii::Pipeline& pipeline() const  {
 			return m_graphicsPipeline;  // No dereference needed
 		}
 
-		 auto& layout() {
+		  vk::raii::PipelineLayout& layout() {
 			return m_pipelineLayout;
 		}
 

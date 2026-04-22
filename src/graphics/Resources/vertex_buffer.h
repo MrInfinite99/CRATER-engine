@@ -45,4 +45,7 @@ namespace CRATER::ResourceManager {
 		 
 		VmaBuffer m_vertexBuffer;
 	};
+
+	vk::VertexInputBindingDescription  getBindingDescription();
+	std::array<vk::VertexInputAttributeDescription, 3>  getAttributeDescriptions();
 }

@@ -52,6 +52,7 @@ set(RESOURCES
 set(SCENE
     src/Scene/Scene.cpp
     src/Scene/RenderSystem.cpp
+    src/Scene/systems/camera_system.cpp
 )
 
 set(EXTERNAL
@@ -90,6 +91,9 @@ target_link_libraries(${PROJECT_NAME}
         SPIRV-Headers::SPIRV-Headers
 )
 
-
+target_compile_definitions(${PROJECT_NAME} PRIVATE 
+    GLM_FORCE_DEPTH_ZERO_TO_ONE
+    GLM_FORCE_RADIANS
+)
 
  

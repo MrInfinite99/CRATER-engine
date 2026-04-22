@@ -92,7 +92,7 @@ namespace CRATER::Renderer
 		);
 
 		transition_image_layout(
-			texture.depthimage(),
+			depthtexture.depthimage(),
 			vk::ImageLayout::eUndefined,
 			vk::ImageLayout::eDepthAttachmentOptimal,
 			vk::AccessFlagBits2::eDepthStencilAttachmentWrite,
@@ -112,7 +112,7 @@ namespace CRATER::Renderer
 		};
 
 		vk::RenderingAttachmentInfo depthAttachmentInfo = {
-	.imageView = texture.depthimageview(),
+	.imageView = depthtexture.depthimageview(),
 	.imageLayout = vk::ImageLayout::eDepthAttachmentOptimal,
 	.loadOp = vk::AttachmentLoadOp::eClear,
 	.storeOp = vk::AttachmentStoreOp::eDontCare,
@@ -127,15 +127,71 @@ namespace CRATER::Renderer
 		};
 
 		commandBuffer.beginRendering(renderingInfo);
-		commandBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, m_graphicsPipeline.pipeline());
-		commandBuffer.bindVertexBuffers(0, static_cast<vk::Buffer>(vertexBuffer.get()), {0});
-		commandBuffer.bindIndexBuffer(static_cast<vk::Buffer>(indexBuffer.get()), 0, vk::IndexType::eUint32);
-		commandBuffer.setViewport(0, vk::Viewport(0.0f, 0.0f, static_cast<float>(m_swapChain.extent().width), static_cast<float>(m_swapChain.extent().height), 0.0f, 1.0f));
-		commandBuffer.setScissor(0, vk::Rect2D(vk::Offset2D(0, 0),m_swapChain.extent() ));
 
-		 
-		commandBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, *m_graphicsPipeline.layout(), 0, *descriptorSets[frameIndex], nullptr);
-		commandBuffer.drawIndexed(static_cast<uint32_t>(indexBuffer.getIndicesSize()), 1, 0, 0,0);
+		Material* currentMaterial = nullptr;
+		Mesh* currentMesh = nullptr;
+		for (auto& obj : renderObjects) {
+
+			if (obj.material != currentMaterial) {
+				currentMaterial = obj.material;
+ 
+
+				commandBuffer.bindPipeline(
+					vk::PipelineBindPoint::eGraphics,
+					currentMaterial->graphicsPipeline.pipeline()
+				);
+
+				commandBuffer.bindDescriptorSets(
+					vk::PipelineBindPoint::eGraphics,
+					*currentMaterial->graphicsPipeline.layout(),
+					0,
+					*currentMaterial->descriptorSets[frameIndex],
+					nullptr
+				);
+
+
+				 
+			}
+			 
+			commandBuffer.setViewport(0, vk::Viewport(0.0f, 0.0f, static_cast<float>(m_swapChain.extent().width), static_cast<float>(m_swapChain.extent().height), 0.0f, 1.0f));
+			commandBuffer.setScissor(0, vk::Rect2D(vk::Offset2D(0, 0), m_swapChain.extent()));
+
+
+			if (obj.mesh != currentMesh) {
+				currentMesh = obj.mesh;
+				commandBuffer.bindVertexBuffers(
+					0,
+					static_cast<vk::Buffer>(obj.mesh->vertexBuffer.get()),
+					{ 0 }
+				);
+
+
+				commandBuffer.bindIndexBuffer(
+					static_cast<vk::Buffer>(obj.mesh->indexBuffer.get()),
+					0,
+					vk::IndexType::eUint32
+				);
+			}
+
+			StandardPushConstants pc{};
+			pc.model = obj.getModelMatrix();
+			commandBuffer.pushConstants<StandardPushConstants>(
+				*obj.material->graphicsPipeline.layout(),
+				vk::ShaderStageFlagBits::eVertex,  // ✓ Match the range
+				0,
+				pc
+			);
+			 
+			 
+			commandBuffer.drawIndexed(
+				static_cast<uint32_t>(obj.mesh->indexBuffer.getIndicesSize()),
+				1,
+				0,
+				0,
+				0
+			);
+		}
+		
 		commandBuffer.endRendering();
 
 		// After rendering, transition the swapchain image to PRESENT_SRC
@@ -206,7 +262,7 @@ namespace CRATER::Renderer
 	 
 	}
 
-	void Renderer::render() {
+	void Renderer::render(CRATER::Scene::Scene& scene) {
 		
 		auto fenceResult = m_device.logicalDevice().waitForFences(*inFlightFences[frameIndex], vk::True, UINT64_MAX);
 
@@ -219,7 +275,7 @@ namespace CRATER::Renderer
 		{
 			 
 			m_swapChain.recreateSwapChain(m_device.logicalDevice(), m_device.physicalDevice(), m_surface, m_window);
-			texture.createDepthResources(m_device, m_swapChain.extent());
+			depthtexture.createDepthResources(m_device, m_swapChain.extent());
 			return;
 		}
 		if (result != vk::Result::eSuccess && result != vk::Result::eSuboptimalKHR)
@@ -233,16 +289,17 @@ namespace CRATER::Renderer
 		commandBuffers[frameIndex].reset();
 		recordCommandBuffer(imageIndex);
 		/*****************************************TEMP*****************************************************************/
-		static auto startTime = std::chrono::high_resolution_clock::now();
+		 
 
-		auto currentTime = std::chrono::high_resolution_clock::now();
-		float time = std::chrono::duration<float, std::chrono::seconds::period>(currentTime - startTime).count();
-
-		UniformBufferObject ubo{};
-		ubo.model = rotate(glm::mat4(1.0f), time * glm::radians(90.0f), glm::vec3(0.0f, 0.0f, 1.0f));
-		ubo.view = lookAt(glm::vec3(2.0f, 2.0f, 2.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 0.0f, 1.0f));
-		ubo.proj = glm::perspective(glm::radians(45.0f), static_cast<float>(m_swapChain.extent().width) / static_cast<float>(m_swapChain.extent().height), 0.1f, 10.0f);
-		ubo.proj[1][1] *= -1;
+			UniformBufferObject ubo{};
+			  
+			ubo.view = scene.getCamera().getViewMatrix();
+			ubo.proj = scene.getCamera().getProjectionMatrix(static_cast<float>(m_swapChain.extent().width) / static_cast<float>(m_swapChain.extent().height), 0.1f, 100.0f);
+			ubo.proj[1][1] *= -1;
+			 
+			/*ubo.view = glm::lookAt(glm::vec3(0, -5, -5), glm::vec3(0), glm::vec3(0, 1, 0));
+			ubo.proj = glm::perspective(glm::radians(45.0f), static_cast<float>(m_swapChain.extent().width) / static_cast<float>(m_swapChain.extent().height), 0.1f, 100.0f);
+			ubo.proj[1][1] *= -1;*/
 		/******************************************************************************************************************/
 		uniformBuffer.updateUniformBuffer(frameIndex, ubo);
 		 
@@ -284,7 +341,7 @@ namespace CRATER::Renderer
 			framebufferResized = false;
 			//std::cout << "AAAAAAAAAAA" << std::endl;
 			m_swapChain.recreateSwapChain(m_device.logicalDevice(),m_device.physicalDevice(), m_surface, m_window);
-			texture.createDepthResources(m_device, m_swapChain.extent());
+			depthtexture.createDepthResources(m_device, m_swapChain.extent());
 		}
 		else
 		{
@@ -313,4 +370,58 @@ namespace CRATER::Renderer
 		m_allocator = VmaAllocatorRAII(allocatorInfo);
 	}
 	
+
+	Material* Renderer::createMaterial(const std::string& matID, const std::string& matPath, const std::string& texPath) {
+
+		auto it = materials.find(matID);
+		if (it != materials.end()) {
+			return it->second.get();
+		}
+
+		auto material = std::make_unique<Material>();
+		material->init(m_device.logicalDevice(), m_swapChain, matPath, depthtexture.findDepthFormat(m_device));
+
+		auto texture = std::make_unique<ResourceManager::Texture>();
+		 
+		texture->createTexture(texPath.c_str(), m_allocator, m_device);
+
+		textures.emplace(matID,std::move( texture));
+
+		Material* ptr = material.get();
+
+		materials.emplace(matID, std::move(material));
+
+		return ptr;
+	}
+
+	Mesh* Renderer::createMesh(const std::string& meshID, const std::string& meshPath) {
+		auto it = meshes.find(meshID);
+		if (it != meshes.end()) {
+			return it->second.get();
+		}
+
+
+		ResourceManager::Model model;
+		model.load(meshPath.c_str());
+
+		auto mesh = std::make_unique<Mesh>();
+
+		mesh->vertexBuffer.createVertexBuffer(
+			model.getVertices(),
+			m_allocator,
+			m_device
+		);
+		mesh->indexBuffer.createIndexBuffer(
+			model.getIndices(),
+			m_allocator,
+			m_device
+		);
+
+		
+
+		Mesh* ptr = mesh.get();
+		meshes.emplace(meshID, std::move(mesh));
+
+		return ptr;
+	}
 }          

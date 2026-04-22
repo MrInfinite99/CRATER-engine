@@ -15,7 +15,7 @@ namespace CRATER::Renderer {
 	}
 
 
-	void VulkanGraphicsPipeline::createPipeline(vk::raii::Device& device, vk::Extent2D& swapChainExtent, vk::Format& swapChainImageFormat, vk::SurfaceFormatKHR   swapChainSurfaceFormat, const std::vector<char>& code, ResourceManager::VulkanVertexBuffer& vertex, DescriptorSet& descriptorSets, vk::Format depthFormat) {
+	void VulkanGraphicsPipeline::createPipeline(vk::raii::Device& device, vk::Extent2D& swapChainExtent, vk::Format& swapChainImageFormat, vk::SurfaceFormatKHR   swapChainSurfaceFormat, const std::vector<char>& code, DescriptorSet& descriptorSets,PushConstant& pushConstant, vk::Format depthFormat) {
 		m_shaderModule = createShaderModule(code, device);
 
 		vk::PipelineShaderStageCreateInfo vertShaderStageInfo{ .stage = vk::ShaderStageFlagBits::eVertex, .module = m_shaderModule,  .pName = "vertMain" };
@@ -26,8 +26,8 @@ namespace CRATER::Renderer {
 
 		vk::PipelineDynamicStateCreateInfo dynamicState{ .dynamicStateCount = static_cast<uint32_t>(dynamicStates.size()), .pDynamicStates = dynamicStates.data() };
 
-		auto bindingDescription = vertex.getBindingDescription();
-		auto attributeDescriptions = vertex.getAttributeDescriptions();
+		auto bindingDescription = ResourceManager::getBindingDescription();
+		auto attributeDescriptions = ResourceManager::getAttributeDescriptions();
 		vk::PipelineVertexInputStateCreateInfo   vertexInputInfo{ .vertexBindingDescriptionCount = 1,
 														 .pVertexBindingDescriptions = &bindingDescription,
 														 .vertexAttributeDescriptionCount = static_cast<uint32_t>(attributeDescriptions.size()),
@@ -42,8 +42,8 @@ namespace CRATER::Renderer {
 		vk::PipelineRasterizationStateCreateInfo rasterizer{ .depthClampEnable = vk::False,
 													.rasterizerDiscardEnable = vk::False,
 													.polygonMode = vk::PolygonMode::eFill,
-													.cullMode = vk::CullModeFlagBits::eBack,
-													.frontFace = vk::FrontFace::eCounterClockwise,
+													.cullMode = vk::CullModeFlagBits::eNone,
+													.frontFace = vk::FrontFace::eClockwise,
 													.depthBiasEnable = vk::False,
 													.lineWidth = 1.0f };
 
@@ -69,7 +69,8 @@ namespace CRATER::Renderer {
 		vk::PipelineLayoutCreateInfo pipelineLayoutInfo{
 			.setLayoutCount = 1,
 			.pSetLayouts = &layout,
-			.pushConstantRangeCount = 0
+			.pushConstantRangeCount = 1,
+			.pPushConstantRanges=&pushConstant.getRange()
 		};
 
 		m_pipelineLayout = vk::raii::PipelineLayout(device, pipelineLayoutInfo);
