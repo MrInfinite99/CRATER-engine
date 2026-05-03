@@ -2,7 +2,7 @@
 
 A modern 3D rendering engine built from scratch using Vulkan API, featuring Entity-Component-System architecture and advanced rendering techniques.
 
-![CRATER Screenshot](C:\Users\karan\OneDrive\Pictures\Screenshots\Screenshot 2026-05-03 140717.png)
+<img width="792" height="628" alt="Screenshot 2026-05-03 140717" src="https://github.com/user-attachments/assets/330ce6b7-0df4-4fba-a02a-de7a1581dc53" />
 <!-- Add a screenshot of your rendered scene here -->
 
 ## Overview
