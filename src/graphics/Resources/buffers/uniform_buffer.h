@@ -1,11 +1,11 @@
 #pragma once
-#include"vma/vma_buffer.h"
-#include"../Renderer/Device.h"
-#include"../constants.h"
+#include"../vma/vma_buffer.h"
+#include"../../Renderer/Device.h"
+#include"../../constants.h"
 #include<vector>
 #include <chrono>
 
-namespace CRATER::ResourceManager {
+namespace CRATER::Resource {
 
 	template<typename T>
 	class VulkanUniformBuffer {
@@ -24,7 +24,7 @@ namespace CRATER::ResourceManager {
 	};
 }
 
-namespace CRATER::ResourceManager {
+namespace CRATER::Resource {
     template<typename T>
     void VulkanUniformBuffer<T>::createUniformBuffer(VmaAllocator allocator, Renderer::VulkanDevice& device) {
         m_uniformBuffer.clear();

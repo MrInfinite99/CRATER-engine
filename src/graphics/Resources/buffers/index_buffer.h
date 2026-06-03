@@ -1,8 +1,8 @@
 #pragma once
  
-#include"vma/vma_buffer.h"
-#include"../Renderer/Device.h"
-namespace CRATER::ResourceManager {
+#include"../vma/vma_buffer.h"
+#include"../../Renderer/Device.h"
+namespace CRATER::Resource {
 	class VulkanIndexBuffer {
 	private:
 		std::vector<uint32_t> indices;

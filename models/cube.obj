@@ -1,0 +1,32 @@
+# Skybox Cube Mesh (Inside-Out Winding)
+# Centered at (0,0,0) with coordinates from -1 to 1
+
+# Vertex Positions (v x y z)
+v -1.0  1.0  1.0
+v  1.0  1.0  1.0
+v  1.0 -1.0  1.0
+v -1.0 -1.0  1.0
+v -1.0  1.0 -1.0
+v  1.0  1.0 -1.0
+v  1.0 -1.0 -1.0
+v -1.0 -1.0 -1.0
+
+# Face Indices (f v1 v2 v3) - Wound to face inward
+# Front Face
+f 1 3 2
+f 1 4 3
+# Right Face
+f 2 7 6
+f 2 3 7
+# Back Face
+f 6 8 5
+f 6 7 8
+# Left Face
+f 5 4 1
+f 5 8 4
+# Top Face
+f 5 2 6
+f 5 1 2
+# Bottom Face
+f 4 7 3
+f 4 8 7

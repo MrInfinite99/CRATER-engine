@@ -1,6 +1,6 @@
 #include"shader_compile.h"
 
-namespace CRATER::ResourceManager {
+namespace CRATER::Resource {
 	std::vector<char> ShaderCompiler::compileShader(
         const std::string& shaderPath,
         const std::string& vertEntryPoint,

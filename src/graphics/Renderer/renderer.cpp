@@ -128,8 +128,8 @@ namespace CRATER::Renderer
 
 		commandBuffer.beginRendering(renderingInfo);
 
-		Material* currentMaterial = nullptr;
-		Mesh* currentMesh = nullptr;
+		Object::Material* currentMaterial = nullptr;
+		Object::Mesh* currentMesh = nullptr;
 		for (auto& obj : renderObjects) {
 
 			if (obj.material != currentMaterial) {
@@ -138,12 +138,12 @@ namespace CRATER::Renderer
 
 				commandBuffer.bindPipeline(
 					vk::PipelineBindPoint::eGraphics,
-					currentMaterial->graphicsPipeline.pipeline()
+					currentMaterial->shaderRef->graphicsPipeline.pipeline()
 				);
 
 				commandBuffer.bindDescriptorSets(
 					vk::PipelineBindPoint::eGraphics,
-					*currentMaterial->graphicsPipeline.layout(),
+					*currentMaterial->shaderRef->pipelineLayout.layout(),
 					0,
 					*currentMaterial->descriptorSets[frameIndex],
 					nullptr
@@ -176,12 +176,12 @@ namespace CRATER::Renderer
 			StandardPushConstants pc{};
 			pc.model = obj.getModelMatrix();
 			commandBuffer.pushConstants<StandardPushConstants>(
-				*obj.material->graphicsPipeline.layout(),
+				*obj.material->shaderRef->pipelineLayout.layout(),
 				vk::ShaderStageFlagBits::eVertex,  // ✓ Match the range
 				0,
 				pc
 			);
-			 
+
 			 
 			commandBuffer.drawIndexed(
 				static_cast<uint32_t>(obj.mesh->indexBuffer.getIndicesSize()),
@@ -296,10 +296,7 @@ namespace CRATER::Renderer
 			ubo.view = scene.getCamera().getViewMatrix();
 			ubo.proj = scene.getCamera().getProjectionMatrix(static_cast<float>(m_swapChain.extent().width) / static_cast<float>(m_swapChain.extent().height), 0.1f, 100.0f);
 			ubo.proj[1][1] *= -1;
-			 
-			/*ubo.view = glm::lookAt(glm::vec3(0, -5, -5), glm::vec3(0), glm::vec3(0, 1, 0));
-			ubo.proj = glm::perspective(glm::radians(45.0f), static_cast<float>(m_swapChain.extent().width) / static_cast<float>(m_swapChain.extent().height), 0.1f, 100.0f);
-			ubo.proj[1][1] *= -1;*/
+		 
 		/******************************************************************************************************************/
 		uniformBuffer.updateUniformBuffer(frameIndex, ubo);
 		 
@@ -369,42 +366,88 @@ namespace CRATER::Renderer
 		 
 		m_allocator = VmaAllocatorRAII(allocatorInfo);
 	}
+
+	Object::Shader* Renderer::createShader(const std::string& shaderPath,PipelineType type) {
+		auto it = shaders.find(shaderPath);
+		if (it != shaders.end()) {
+			return it->second.get();
+		}
+
+		auto shader = std::make_unique<Object::Shader>();
+		auto shaderCode = Resource::ShaderCompiler::get().compileShader(shaderPath, "vertMain", "fragMain");
+		shader->init(m_device.logicalDevice(),
+			m_swapChain,
+			shaderCode,
+			depthtexture.findDepthFormat(m_device),
+			type
+		);
+
+		auto [newIt,_]=shaders.emplace(shaderPath, std::move(shader));
+		return newIt->second.get();
+	}
 	
 
-	Material* Renderer::createMaterial(const std::string& matID, const std::string& matPath, const std::string& texPath) {
+	Object::Material* Renderer::createMaterial(const std::string& matID, const std::string& matPath,const std::string& texPath, PipelineType type) {
 
 		auto it = materials.find(matID);
 		if (it != materials.end()) {
 			return it->second.get();
 		}
 
-		auto material = std::make_unique<Material>();
-		material->init(m_device.logicalDevice(), m_swapChain, matPath, depthtexture.findDepthFormat(m_device));
+		Object::Shader* shader = createShader(matPath,type);
 
-		auto texture = std::make_unique<ResourceManager::Texture>();
-		 
-		texture->createTexture(texPath.c_str(), m_allocator, m_device);
+		auto material = std::make_unique<Object::Material>();
+		material->init(m_device.logicalDevice(),shader);
 
-		textures.emplace(matID,std::move( texture));
+		Object::Material* ptr = material.get();
 
-		Material* ptr = material.get();
+		if (type == PipelineType::OpaqueMesh) {
 
-		materials.emplace(matID, std::move(material));
+			auto texture = std::make_unique<Resource::Texture>();
+
+			texture->createTexture(texPath.c_str(), m_allocator, m_device);
+
+			textures.emplace(matID, std::move(texture));
+
+			
+
+			materials.emplace(matID, std::move(material));
+		}
+		else if (type == PipelineType::Skybox) {
+			auto texture = std::make_unique<Resource::SkyboxTexture>();
+
+			std::vector<std::string> skyboxTexPath = {
+				"D:/vkguide/VkRE/textures/skybox/right.jpg",
+				"D:/vkguide/VkRE/textures/skybox/left.jpg",
+				"D:/vkguide/VkRE/textures/skybox/top.jpg",
+				"D:/vkguide/VkRE/textures/skybox/bottom.jpg",
+				"D:/vkguide/VkRE/textures/skybox/front.jpg",
+				"D:/vkguide/VkRE/textures/skybox/back.jpg"
+			};
+
+			texture->createSkybox(skyboxTexPath, m_allocator, m_device);
+
+			skyboxTextures.emplace(matID, std::move(texture));
+
+			skyboxMaterials.emplace(matID, std::move(material));
+		}
+
+		
 
 		return ptr;
 	}
 
-	Mesh* Renderer::createMesh(const std::string& meshID, const std::string& meshPath) {
+	Object::Mesh* Renderer::createMesh(const std::string& meshID, const std::string& meshPath) {
 		auto it = meshes.find(meshID);
 		if (it != meshes.end()) {
 			return it->second.get();
 		}
 
 
-		ResourceManager::Model model;
+		Resource::Model model;
 		model.load(meshPath.c_str());
 
-		auto mesh = std::make_unique<Mesh>();
+		auto mesh = std::make_unique<Object::Mesh>();
 
 		mesh->vertexBuffer.createVertexBuffer(
 			model.getVertices(),
@@ -419,7 +462,7 @@ namespace CRATER::Renderer
 
 		
 
-		Mesh* ptr = mesh.get();
+		Object::Mesh* ptr = mesh.get();
 		meshes.emplace(meshID, std::move(mesh));
 
 		return ptr;

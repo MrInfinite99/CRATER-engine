@@ -43,8 +43,8 @@ set(RENDERER
 
 set(RESOURCES 
     src/graphics/Resources/shaders/shader_compile.cpp 
-    src/graphics/Resources/vertex_buffer.cpp  
-    src/graphics/Resources/index_buffer.cpp  
+    src/graphics/Resources/buffers/vertex_buffer.cpp  
+    src/graphics/Resources/buffers/index_buffer.cpp
     src/graphics/Resources/textures/texture.cpp  
       
 )

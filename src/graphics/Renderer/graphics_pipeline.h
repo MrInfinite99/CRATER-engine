@@ -1,40 +1,46 @@
 #pragma once
-#define VULKAN_HPP_NO_STRUCT_CONSTRUCTORS
-#if defined(__INTELLISENSE__) || !defined(USE_CPP20_MODULES)
-#include <vulkan/vulkan_raii.hpp>
-#else
-import vulkan_hpp;
-#endif
 
-#include"../Resources/shaders/shader_compile.h"
-#include"../Resources/vertex_buffer.h"
-#include"descriptor_set.h"
+#include "pipeline_registry.h"
+
+
 
 
 namespace CRATER::Renderer {
-	class VulkanGraphicsPipeline {
+	class PipelineLayout {
+	private:
+		vk::raii::PipelineLayout m_pipelineLayout{ nullptr };
+		
+
+		
 	public:
-		VulkanGraphicsPipeline() = default;
-		~VulkanGraphicsPipeline() = default;
+		 PipelineLayout() = default;
+		~PipelineLayout() = default;
 
 		 
+		void create(vk::raii::Device& device, DescriptorSetLayout& descriptorSetLayout, PushConstant& pushConstant);
 
-		void createPipeline(vk::raii::Device& device, vk::Extent2D& swapChainExtent, vk::Format& swapChainImageFormat, vk::SurfaceFormatKHR   swapChainSurfaceFormat,const std::vector<char>& code, DescriptorSet& descriptorSets,PushConstant& pushConstant,vk::Format depthFormat);
-		 
+		vk::raii::PipelineLayout& layout() {
+			return m_pipelineLayout;
+		}
+	};
+	//For a completely generic pipeline create a config struct ,to support different kinds of pipelines
+	 
+
+	class GraphicsPipeline {
+	public:
+		GraphicsPipeline() = default;
+		~GraphicsPipeline() = default;
+ 
+		void create(PipelineLayout& layout, vk::raii::Device& device, vk::Extent2D& swapChainExtent, vk::Format& swapChainImageFormat, vk::SurfaceFormatKHR   swapChainSurfaceFormat, const std::vector<char>& code, vk::Format depthFormat, PipelineType type);
 	     const vk::raii::Pipeline& pipeline() const  {
 			return m_graphicsPipeline;  // No dereference needed
 		}
-
-		  vk::raii::PipelineLayout& layout() {
-			return m_pipelineLayout;
-		}
-
+ 
 	private:
-		
-		vk::raii::ShaderModule createShaderModule(const std::vector<char>& code, vk::raii::Device& device) const;
 		vk::raii::ShaderModule m_shaderModule{ nullptr };
-		vk::raii::PipelineLayout m_pipelineLayout{ nullptr };
+		vk::raii::ShaderModule createShaderModule(const std::vector<char>& code, vk::raii::Device& device) const;
 		vk::raii::Pipeline m_graphicsPipeline{ nullptr };
+		PipelineConfig config;
 
 		 
 	};

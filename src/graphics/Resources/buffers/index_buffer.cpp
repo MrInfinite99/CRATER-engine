@@ -1,6 +1,6 @@
 #include"index_buffer.h"
 
-namespace CRATER::ResourceManager {
+namespace CRATER::Resource {
 	void VulkanIndexBuffer::createIndexBuffer(const std::vector<uint32_t>& m_indices,VmaAllocator allocator, Renderer::VulkanDevice& device) {
         indices = m_indices;
 		vk::DeviceSize bufferSize = sizeof(indices[0]) * indices.size();

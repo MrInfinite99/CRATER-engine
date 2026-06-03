@@ -1,11 +1,7 @@
 #include"descriptor_set.h"
 
 namespace CRATER::Renderer {
-
-
-
-
-	void DescriptorSet::reflectShader(const std::vector<char>& spirvCode) {
+	void DescriptorSetLayout::reflectShader(const std::vector<char>& spirvCode) {
 		SpvReflectShaderModule module;
 		spvReflectCreateShaderModule(spirvCode.size(), spirvCode.data(), &module);
 
@@ -41,7 +37,7 @@ namespace CRATER::Renderer {
 	}
 
 
-	void DescriptorSet::build(vk::raii::Device& device) {
+	void DescriptorSetLayout::create(vk::raii::Device& device) {
 		std::vector<vk::DescriptorSetLayoutBinding> layoutBindings;
 
 		for (auto const& [name, info] : reflectionMap) {
@@ -52,27 +48,33 @@ namespace CRATER::Renderer {
 		layoutInfo.bindingCount = static_cast<uint32_t>(layoutBindings.size());
 		layoutInfo.pBindings = layoutBindings.data();
 		descriptorSetLayout = vk::raii::DescriptorSetLayout(device, layoutInfo);
+	}
+}
 
+
+namespace CRATER::Renderer {
+ 
+	void DescriptorSet::create(vk::raii::Device& device,DescriptorSetLayout* descriptorSetLayout) {
+		layoutRef = descriptorSetLayout;
 		vk::DescriptorPoolCreateInfo poolInfo{
 			.flags = vk::DescriptorPoolCreateFlagBits::eFreeDescriptorSet,
 			.maxSets = MAX_FRAMES_IN_FLIGHT,
-			.poolSizeCount = (uint32_t)poolSizes.size(),
-			.pPoolSizes = poolSizes.data()
+			.poolSizeCount = (uint32_t)layoutRef->getPoolSizes().size(),
+			.pPoolSizes = layoutRef->getPoolSizes().data()
 		};
 		descriptorPool = vk::raii::DescriptorPool(device, poolInfo);
 
 		// Allocate sets
-		std::vector<vk::DescriptorSetLayout> layouts(MAX_FRAMES_IN_FLIGHT, *descriptorSetLayout);
+		std::vector<vk::DescriptorSetLayout> layouts(MAX_FRAMES_IN_FLIGHT, layoutRef->layout());
 		vk::DescriptorSetAllocateInfo allocInfo{};
 		allocInfo.descriptorPool = *descriptorPool;
 		allocInfo.descriptorSetCount = static_cast<uint32_t>(layouts.size());
 		allocInfo.pSetLayouts = layouts.data();
 		descriptorSets = device.allocateDescriptorSets(allocInfo);
 	}
-
-
-	void DescriptorSet::updateBuffer(vk::raii::Device& device, uint32_t frameIdx, const std::string& name, vk::DescriptorBufferInfo bufferInfo) {
-		auto& info = reflectionMap.at(name);
+ 
+	void DescriptorSet::updateBuffer(vk::raii::Device& device, uint32_t frameIdx, const std::string& name,vk::DescriptorBufferInfo& bufferInfo) {
+		auto& info = layoutRef->getReflectionMap().at(name);
 
 		vk::WriteDescriptorSet write{
 			.dstSet = *descriptorSets[frameIdx],
@@ -86,8 +88,8 @@ namespace CRATER::Renderer {
 
 
 
-	void DescriptorSet::updateImage(vk::raii::Device& device, uint32_t frameIdx, const std::string& name, vk::DescriptorImageInfo imageInfo) {
-		auto& info = reflectionMap.at(name);
+	void DescriptorSet::updateImage(vk::raii::Device& device, uint32_t frameIdx, const std::string& name, vk::DescriptorImageInfo& imageInfo) {
+		auto& info = layoutRef->getReflectionMap().at(name);
 
 		vk::WriteDescriptorSet write{
 			.dstSet = *descriptorSets[frameIdx],

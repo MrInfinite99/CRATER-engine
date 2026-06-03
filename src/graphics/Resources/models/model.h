@@ -4,7 +4,7 @@
 #include"../vertex.h"
 
 
-namespace CRATER::ResourceManager {
+namespace CRATER::Resource{
 	class Model {
 	public:
 		void load(const char* model_path) {
@@ -16,6 +16,7 @@ namespace CRATER::ResourceManager {
 			std::unordered_map<Vertex, uint32_t> uniqueVertices{};
 
 			if (!tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, &err,model_path)) {
+				std::cerr << "Attempted path: " << model_path << std::endl;
 				throw std::runtime_error(warn + err);
 			}
 

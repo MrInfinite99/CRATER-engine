@@ -1,7 +1,7 @@
 #include "Texture.h"
  
 
-namespace CRATER::ResourceManager {
+namespace CRATER::Resource {
 
     void Texture::createTextureImage(const char* texture_path, VmaAllocator allocator, Renderer::VulkanDevice& device) {
         int texWidth, texHeight, texChannels;
@@ -38,10 +38,10 @@ namespace CRATER::ResourceManager {
             vk::MemoryPropertyFlagBits::eDeviceLocal, textureImage, textureImageMemory, device);
 
         // Transition and Copy
-        transitionImageLayout(textureImage, vk::ImageLayout::eUndefined, vk::ImageLayout::eTransferDstOptimal,mipLevels, device);
+        transitionImageLayout(textureImage, vk::ImageLayout::eUndefined, vk::ImageLayout::eTransferDstOptimal,mipLevels,1,device);
         copyBufferToImage(m_textureBuffer, textureImage, static_cast<uint32_t>(texWidth), static_cast<uint32_t>(texHeight), device);
         //transitionImageLayout(textureImage, vk::ImageLayout::eTransferDstOptimal, vk::ImageLayout::eShaderReadOnlyOptimal,mipLevels, device);
-        generateMipmaps(textureImage, vk::Format::eR8G8B8A8Srgb, texWidth, texHeight, mipLevels,device);
+        generateMipmaps(textureImage, vk::Format::eR8G8B8A8Srgb, texWidth, texHeight, mipLevels,1,device);
     }
 
     void Texture::createImage(uint32_t width, uint32_t height, uint32_t mipLevels,vk::Format format, vk::ImageTiling tiling,
@@ -98,14 +98,14 @@ namespace CRATER::ResourceManager {
         device.queue()->waitIdle();
     }
 
-    void Texture::transitionImageLayout(const vk::raii::Image& image, vk::ImageLayout oldLayout, vk::ImageLayout newLayout, uint32_t mipLevels, Renderer::VulkanDevice& device) {
+    void Texture::transitionImageLayout(const vk::raii::Image& image, vk::ImageLayout oldLayout, vk::ImageLayout newLayout, uint32_t mipLevels, uint32_t layerCount, Renderer::VulkanDevice& device) {
         auto commandBuffer = beginSingleTimeCommands(device);
 
         vk::ImageMemoryBarrier barrier{
             .oldLayout = oldLayout,
             .newLayout = newLayout,
             .image = *image,
-            .subresourceRange = { vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1 }
+            .subresourceRange = { vk::ImageAspectFlagBits::eColor, 0, 1, 0, layerCount }
         };
         barrier.subresourceRange.levelCount = mipLevels;
 
@@ -234,7 +234,7 @@ namespace CRATER::ResourceManager {
 
     }
 
-    void Texture::generateMipmaps(vk::raii::Image& image, vk::Format imageFormat, int32_t texWidth, int32_t texHeight, uint32_t mipLevels, Renderer::VulkanDevice& device) {
+    void Texture::generateMipmaps(vk::raii::Image& image, vk::Format imageFormat, int32_t texWidth, int32_t texHeight, uint32_t mipLevels,uint32_t layerCount, Renderer::VulkanDevice& device) {
         
 
         vk::FormatProperties formatProperties = device.physicalDevice().getFormatProperties(imageFormat);
@@ -249,7 +249,7 @@ namespace CRATER::ResourceManager {
         vk::ImageMemoryBarrier barrier = { .srcAccessMask = vk::AccessFlagBits::eTransferWrite, .dstAccessMask = vk::AccessFlagBits::eTransferRead, .oldLayout = vk::ImageLayout::eTransferDstOptimal, .newLayout = vk::ImageLayout::eTransferSrcOptimal, .srcQueueFamilyIndex = vk::QueueFamilyIgnored, .dstQueueFamilyIndex = vk::QueueFamilyIgnored, .image = image };
         barrier.subresourceRange.aspectMask = vk::ImageAspectFlagBits::eColor;
         barrier.subresourceRange.baseArrayLayer = 0;
-        barrier.subresourceRange.layerCount = 1;
+        barrier.subresourceRange.layerCount = layerCount;
         barrier.subresourceRange.levelCount = 1;
 
         int32_t mipWidth = texWidth;
@@ -273,6 +273,8 @@ namespace CRATER::ResourceManager {
             vk::ImageBlit blit = { .srcSubresource = {}, .srcOffsets = offsets, .dstSubresource = {}, .dstOffsets = dstOffsets };
             blit.srcSubresource = vk::ImageSubresourceLayers(vk::ImageAspectFlagBits::eColor, i - 1, 0, 1);
             blit.dstSubresource = vk::ImageSubresourceLayers(vk::ImageAspectFlagBits::eColor, i, 0, 1);
+            blit.srcSubresource.layerCount = layerCount;
+            blit.dstSubresource.layerCount = layerCount;
 
             commandBuffer.blitImage(image, vk::ImageLayout::eTransferSrcOptimal, image, vk::ImageLayout::eTransferDstOptimal, { blit }, vk::Filter::eLinear);
 

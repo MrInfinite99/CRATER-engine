@@ -7,12 +7,18 @@
 #include <iostream>
 #include <cstdio>
 
-namespace CRATER::ResourceManager {
+namespace CRATER::Resource {
 	class ShaderCompiler {
+	private:
+		ShaderCompiler(){}
 	public:
-		ShaderCompiler() = default;
-		~ShaderCompiler() = default;
+		ShaderCompiler(const ShaderCompiler&) = delete;
+		ShaderCompiler& operator=(const ShaderCompiler&) = delete;
 
+		static ShaderCompiler& get() {
+			static ShaderCompiler instance;
+			return instance;
+		}
 
 		std::vector<char> compileShader(
 			const std::string& shaderPath,

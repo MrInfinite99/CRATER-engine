@@ -1,6 +1,6 @@
 #include"vertex_buffer.h"
 
-namespace CRATER::ResourceManager {
+namespace CRATER::Resource{
 
 	void VulkanVertexBuffer::createVertexBuffer(const std::vector<Vertex>& m_vertices,VmaAllocator allocator, Renderer::VulkanDevice& device) {
         vertices = m_vertices;
@@ -60,17 +60,24 @@ namespace CRATER::ResourceManager {
         device.queue()->waitIdle();
 	 }
 	 
-
-    vk::VertexInputBindingDescription  getBindingDescription()
+    //return a vector because the vertex data may contain data like pos,color,texCoord,bone weights etc.........
+    std::vector<vk::VertexInputBindingDescription> getBindingDescription()
     {
-        return { .binding = 0, .stride = sizeof(Vertex), .inputRate = vk::VertexInputRate::eVertex };
+        return {
+            vk::VertexInputBindingDescription{
+                .binding = 0,
+                .stride = sizeof(Vertex),
+                .inputRate = vk::VertexInputRate::eVertex
+            }
+        };
     }
 
-    std::array<vk::VertexInputAttributeDescription, 3>  getAttributeDescriptions()
+    std::vector<vk::VertexInputAttributeDescription> getAttributeDescriptions()
     {
-        return { {	{.location = 0, .binding = 0, .format = vk::Format::eR32G32B32Sfloat,		.offset = offsetof(Vertex, pos)},
-                    {.location = 1, .binding = 0, .format = vk::Format::eR32G32B32Sfloat,	.offset = offsetof(Vertex,color)},
-                    {.location = 2,	.binding = 0, .format = vk::Format::eR32G32Sfloat,		.offset = offsetof(Vertex,texCoord)}} };
+        return {
+            vk::VertexInputAttributeDescription{.location = 0, .binding = 0, .format = vk::Format::eR32G32B32Sfloat, .offset = offsetof(Vertex, pos)},
+            vk::VertexInputAttributeDescription{.location = 1, .binding = 0, .format = vk::Format::eR32G32B32Sfloat, .offset = offsetof(Vertex, color)},
+            vk::VertexInputAttributeDescription{.location = 2, .binding = 0, .format = vk::Format::eR32G32Sfloat,    .offset = offsetof(Vertex, texCoord)}
+        };
     }
-
 }

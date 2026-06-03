@@ -3,7 +3,7 @@
 #include<stdexcept>
 #include<utility>
 
-namespace CRATER::ResourceManager {
+namespace CRATER::Resource{
     class VmaBuffer {
     public:
         VmaBuffer() = default;

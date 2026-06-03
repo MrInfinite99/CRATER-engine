@@ -5,6 +5,7 @@
 #include <glm/gtc/matrix_transform.hpp>
 #include <string>
 #include"systems/camera_system.h"
+#include"../engineTypes.h"
 
 namespace CRATER::Scene {
 
@@ -60,12 +61,13 @@ namespace CRATER::Scene {
 		std::string modelPath;
 		 
 	};
+ 
 
 	struct MaterialComponent {
 		std::string materialID;
 		std::string materialPath;
 		std::string texturePath;
-
+		PipelineType type= PipelineType::OpaqueMesh;
 	};
 
  
