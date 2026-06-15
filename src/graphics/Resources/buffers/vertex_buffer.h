@@ -19,10 +19,13 @@ namespace CRATER::Resource {
 		~VulkanVertexBuffer() = default;
 
 		std::vector<Vertex> vertices;
+		std::vector<SkyboxVertex> skyvertices;
+
 
 		 
 
 		void createVertexBuffer(const std::vector<Vertex>& vertices,VmaAllocator allocator,Renderer::VulkanDevice& device);
+		void createVertexBuffer(const std::vector<SkyboxVertex>& m_vertices, VmaAllocator allocator, Renderer::VulkanDevice& device);
 
 		VkBuffer get() {
 			return m_vertexBuffer.buffer();
@@ -39,5 +42,7 @@ namespace CRATER::Resource {
 	std::vector<vk::VertexInputBindingDescription> getBindingDescription();
 	std::vector<vk::VertexInputAttributeDescription> getAttributeDescriptions();
 
+	std::vector<vk::VertexInputBindingDescription> getSkyboxBindingDescription();
+	std::vector<vk::VertexInputAttributeDescription> getSkyboxAttributeDescriptions();
 	 
 }

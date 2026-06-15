@@ -54,6 +54,6 @@ float4 fragMain(VSOutput input) : SV_Target
     // Sample the cube map using the interpolated 3D direction vector
     float3 color = skyboxTexture.Sample(normalize(input.viewDir)).rgb;
     
-   return float4(color, 1.0);
+  return float4(color, 1.0);
     //return float4(1.0, 0.0, 0.0, 1.0); // should see red everywhere behind geometry
 }

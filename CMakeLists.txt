@@ -23,6 +23,7 @@ find_package(glm  CONFIG REQUIRED)
 find_package(EnTT CONFIG REQUIRED)
 find_package(VulkanMemoryAllocator CONFIG REQUIRED)
 find_package(SPIRV-Headers CONFIG REQUIRED)
+find_package(ktx CONFIG REQUIRED)
 
 # Add source to this project's executable.
  
@@ -42,10 +43,11 @@ set(RENDERER
 )
 
 set(RESOURCES 
-    src/graphics/Resources/shaders/shader_compile.cpp 
+    src/graphics/Resources/shaders/shader.cpp
     src/graphics/Resources/buffers/vertex_buffer.cpp  
     src/graphics/Resources/buffers/index_buffer.cpp
     src/graphics/Resources/textures/texture.cpp  
+    src/graphics/Resources/models/model.cpp
       
 )
 
@@ -58,7 +60,6 @@ set(SCENE
 set(EXTERNAL
     src/external/vma.cpp
     src/external/spirv_reflect.cpp 
-    src/external/stb_image.cpp
     src/external/tiny_obj_loader.cpp 
 )
 
@@ -89,6 +90,7 @@ target_link_libraries(${PROJECT_NAME}
         EnTT::EnTT
         GPUOpen::VulkanMemoryAllocator 
         SPIRV-Headers::SPIRV-Headers
+        KTX::ktx
 )
 
 target_compile_definitions(${PROJECT_NAME} PRIVATE 

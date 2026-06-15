@@ -3,135 +3,116 @@
 
 namespace CRATER::Resource {
 
-    void Texture::createTextureImage(const char* texture_path, VmaAllocator allocator, Renderer::VulkanDevice& device) {
-        int texWidth, texHeight, texChannels;
-        stbi_uc* pixels = stbi_load(texture_path, &texWidth, &texHeight, &texChannels, STBI_rgb_alpha);
+    void Texture::createTexture()
+       
+    {
+        if (!m_td.ktx)
+            throw std::runtime_error("[Texture] TextureData has null ktxTexture2*");
 
-        mipLevels=static_cast<uint32_t>(std::floor(std::log2(std::max(texWidth, texHeight)))) + 1;
-        vk::DeviceSize imageSize = texWidth * texHeight * 4;
+        vk::Format uploadFormat = static_cast<vk::Format>(m_td.format); 
 
-        if (!pixels) {
-            throw std::runtime_error("failed to load texture image!");
+        // Transcode BasisLZ / UASTC supercompression if needed
+        if (m_td.needsTranscode) {
+            const ktx_transcode_fmt_e target = selectTranscodeFormat(*m_device);
+
+            const KTX_error_code res =
+                ktxTexture2_TranscodeBasis(m_td.ktx, target,0);
+
+            if (res != KTX_SUCCESS)
+                throw std::runtime_error(
+                    std::string("[Texture] TranscodeBasis failed: ") + ktxErrorString(res));
+
+            // libktx updates vkFormat in-place after transcoding
+            uploadFormat = static_cast<vk::Format>(m_td.ktx->vkFormat);
         }
 
-        // Staging Buffer Setup
-        VkBufferCreateInfo bufferInfo = {
-            .sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
-            .size = imageSize,
-            .usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
-            .sharingMode = VK_SHARING_MODE_EXCLUSIVE
-        };
+        uploadKtxMipLevels(m_td.ktx, uploadFormat,
+            m_td.width, m_td.height, m_td.levels,
+            m_allocator, *m_device);
 
-        VmaAllocationCreateInfo allocInfo = {};
-        allocInfo.usage = VMA_MEMORY_USAGE_AUTO;
-        allocInfo.flags = VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT | VMA_ALLOCATION_CREATE_MAPPED_BIT;
-
-        m_textureBuffer = VmaBuffer(allocator, bufferInfo, allocInfo);
-
-        // Copy pixel data to staging buffer
-        memcpy(m_textureBuffer.mappedData(), pixels, imageSize);
-        stbi_image_free(pixels);
-
-        // Create the actual Image (using class members)
-        createImage(texWidth, texHeight, mipLevels, vk::Format::eR8G8B8A8Srgb, vk::ImageTiling::eOptimal,
-            vk::ImageUsageFlagBits::eTransferSrc | vk::ImageUsageFlagBits::eTransferDst | vk::ImageUsageFlagBits::eSampled,
-            vk::MemoryPropertyFlagBits::eDeviceLocal, textureImage, textureImageMemory, device);
-
-        // Transition and Copy
-        transitionImageLayout(textureImage, vk::ImageLayout::eUndefined, vk::ImageLayout::eTransferDstOptimal,mipLevels,1,device);
-        copyBufferToImage(m_textureBuffer, textureImage, static_cast<uint32_t>(texWidth), static_cast<uint32_t>(texHeight), device);
-        //transitionImageLayout(textureImage, vk::ImageLayout::eTransferDstOptimal, vk::ImageLayout::eShaderReadOnlyOptimal,mipLevels, device);
-        generateMipmaps(textureImage, vk::Format::eR8G8B8A8Srgb, texWidth, texHeight, mipLevels,1,device);
+        createTextureImageView(*m_device);
+        createTextureSampler(*m_device);
     }
+ 
+    void Texture::uploadKtxMipLevels(ktxTexture2* ktx,
+        vk::Format                vkFmt,
+        uint32_t                width,
+        uint32_t                height,
+        uint32_t                levels,
+        VmaAllocator            allocator,
+        Renderer::VulkanDevice& device)
+    {
+        mipLevels = levels; // store so createTextureImageView picks up the right count
 
-    void Texture::createImage(uint32_t width, uint32_t height, uint32_t mipLevels,vk::Format format, vk::ImageTiling tiling,
-        vk::ImageUsageFlags usage, vk::MemoryPropertyFlags properties,
-        vk::raii::Image& image, vk::raii::DeviceMemory& imageMemory, Renderer::VulkanDevice& device) {
+        // ── 1. Collect per-level offsets and build copy regions ───────────────
+        std::vector<vk::BufferImageCopy> regions;
+        regions.reserve(levels);
 
-        vk::ImageCreateInfo imageInfo{};
-        imageInfo.imageType = vk::ImageType::e2D;
-        imageInfo.format = format;
-        imageInfo.extent = vk::Extent3D{ width, height, 1 }; imageInfo.mipLevels = 1; imageInfo.arrayLayers = 1;
-        imageInfo.samples = vk::SampleCountFlagBits::e1; imageInfo.tiling = tiling;
-        imageInfo.usage = usage; imageInfo.sharingMode = vk::SharingMode::eExclusive;
-        imageInfo.mipLevels = mipLevels;
+        for (uint32_t lvl = 0; lvl < levels; ++lvl) {
+            ktx_size_t offset = 0;
+            if (ktxTexture_GetImageOffset(ktxTexture(ktx), lvl, 0, 0, &offset) != KTX_SUCCESS)
+                throw std::runtime_error("[Texture] ktxTexture_GetImageOffset failed");
 
-        image = vk::raii::Image(device.logicalDevice(), imageInfo);
-
-        vk::MemoryRequirements memRequirements = image.getMemoryRequirements();
-        vk::MemoryAllocateInfo allocInfo{
-            .allocationSize = memRequirements.size,
-            .memoryTypeIndex = findMemoryType(memRequirements.memoryTypeBits, properties, device)
-        };
-
-        imageMemory = vk::raii::DeviceMemory(device.logicalDevice(), allocInfo);
-        image.bindMemory(*imageMemory, 0);
-    }
-
-    vk::raii::CommandBuffer Texture::beginSingleTimeCommands(Renderer::VulkanDevice& device) {
-        // Note: In a real engine, you should use a persistent Command Pool
-        vk::CommandPoolCreateInfo poolInfo{
-            .flags = vk::CommandPoolCreateFlagBits::eTransient,
-            .queueFamilyIndex = device.graphicsIndex()
-        };
-
-        // For single-time commands, we'll use the device's command pool logic
-        vk::CommandBufferAllocateInfo allocInfo{
-            .commandPool = *device.commandPool(), // Assuming your device wrapper owns a pool
-            .level = vk::CommandBufferLevel::ePrimary,
-            .commandBufferCount = 1
-        };
-
-        vk::raii::CommandBuffer commandBuffer = std::move(device.logicalDevice().allocateCommandBuffers(allocInfo).front());
-        commandBuffer.begin({ .flags = vk::CommandBufferUsageFlagBits::eOneTimeSubmit });
-        return commandBuffer;
-    }
-
-    void Texture::endSingleTimeCommands(vk::raii::CommandBuffer& commandBuffer, Renderer::VulkanDevice& device) {
-        commandBuffer.end();
-
-        vk::SubmitInfo submitInfo{ };
-        submitInfo.commandBufferCount = 1;
-        submitInfo.pCommandBuffers = &*commandBuffer;
-    
-        device.queue()->submit(submitInfo, nullptr);
-        device.queue()->waitIdle();
-    }
-
-    void Texture::transitionImageLayout(const vk::raii::Image& image, vk::ImageLayout oldLayout, vk::ImageLayout newLayout, uint32_t mipLevels, uint32_t layerCount, Renderer::VulkanDevice& device) {
-        auto commandBuffer = beginSingleTimeCommands(device);
-
-        vk::ImageMemoryBarrier barrier{
-            .oldLayout = oldLayout,
-            .newLayout = newLayout,
-            .image = *image,
-            .subresourceRange = { vk::ImageAspectFlagBits::eColor, 0, 1, 0, layerCount }
-        };
-        barrier.subresourceRange.levelCount = mipLevels;
-
-        vk::PipelineStageFlags sourceStage;
-        vk::PipelineStageFlags destinationStage;
-
-        if (oldLayout == vk::ImageLayout::eUndefined && newLayout == vk::ImageLayout::eTransferDstOptimal) {
-            barrier.srcAccessMask = {};
-            barrier.dstAccessMask = vk::AccessFlagBits::eTransferWrite;
-            sourceStage = vk::PipelineStageFlagBits::eTopOfPipe;
-            destinationStage = vk::PipelineStageFlagBits::eTransfer;
-        }
-        else if (oldLayout == vk::ImageLayout::eTransferDstOptimal && newLayout == vk::ImageLayout::eShaderReadOnlyOptimal) {
-            barrier.srcAccessMask = vk::AccessFlagBits::eTransferWrite;
-            barrier.dstAccessMask = vk::AccessFlagBits::eShaderRead;
-            sourceStage = vk::PipelineStageFlagBits::eTransfer;
-            destinationStage = vk::PipelineStageFlagBits::eFragmentShader;
-        }
-        else {
-            throw std::invalid_argument("unsupported layout transition!");
+            vk::BufferImageCopy r;
+            r.bufferOffset = static_cast<vk::DeviceSize>(offset);
+            r.bufferRowLength = 0;
+            r.bufferImageHeight = 0;
+            r.imageSubresource = { vk::ImageAspectFlagBits::eColor, lvl, 0, 1 };
+            r.imageOffset = { 0, 0, 0 };
+            r.imageExtent = { std::max(1u, width >> lvl),
+                                    std::max(1u, height >> lvl), 1 };
+            regions.push_back(r);
         }
 
-        commandBuffer.pipelineBarrier(sourceStage, destinationStage, {}, {}, nullptr, barrier);
-        endSingleTimeCommands(commandBuffer, device);
-    }
+        // ── 2. Single staging buffer for all mip data ─────────────────────────
+        const size_t totalBytes = ktxTexture_GetDataSize(ktxTexture(ktx));
 
+        VkBufferCreateInfo bufInfo{ VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO };
+        bufInfo.size = totalBytes;
+        bufInfo.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
+        bufInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+
+        VmaAllocationCreateInfo vmaInfo{};
+        vmaInfo.usage = VMA_MEMORY_USAGE_CPU_TO_GPU;
+        vmaInfo.flags = VMA_ALLOCATION_CREATE_MAPPED_BIT;
+
+        VmaBuffer staging;
+        staging = VmaBuffer(allocator,bufInfo,vmaInfo);
+        
+
+        memcpy(staging.mappedData(),
+            ktxTexture_GetData(ktxTexture(ktx)),
+            totalBytes);
+
+        // ── 3. Create VkImage ─────────────────────────────────────────────────
+        createImage(width, height, levels,
+            static_cast<vk::Format>(vkFmt),
+            vk::ImageTiling::eOptimal,
+            vk::ImageUsageFlagBits::eTransferDst | vk::ImageUsageFlagBits::eSampled,
+            vk::MemoryPropertyFlagBits::eDeviceLocal,{},1,
+            textureImage, textureImageMemory, device);
+
+        // ── 4. Undefined → TransferDst ────────────────────────────────────────
+        transitionImageLayout(textureImage,
+            vk::ImageLayout::eUndefined,
+            vk::ImageLayout::eTransferDstOptimal,
+            levels, 1, device);
+
+        // ── 5. Copy all mips in one command buffer ────────────────────────────
+        auto cmd = beginSingleTimeCommands(device);
+        cmd.copyBufferToImage(staging.buffer(), *textureImage,
+            vk::ImageLayout::eTransferDstOptimal, regions);
+        endSingleTimeCommands(cmd, device);
+
+        // ── 6. TransferDst → ShaderReadOnly ──────────────────────────────────
+        transitionImageLayout(textureImage,
+            vk::ImageLayout::eTransferDstOptimal,
+            vk::ImageLayout::eShaderReadOnlyOptimal,
+            levels, 1, device);
+
+         
+    }
+ 
     void Texture::copyBufferToImage(const VmaBuffer& buffer, vk::raii::Image& image, uint32_t width, uint32_t height, Renderer::VulkanDevice& device) {
         vk::raii::CommandBuffer commandBuffer = beginSingleTimeCommands(device);
 
@@ -144,23 +125,12 @@ namespace CRATER::Resource {
         commandBuffer.copyBufferToImage(buffer.buffer(), *image, vk::ImageLayout::eTransferDstOptimal, { region });
         endSingleTimeCommands(commandBuffer, device);
     }
-
-    uint32_t Texture::findMemoryType(uint32_t typeFilter, vk::MemoryPropertyFlags properties, Renderer::VulkanDevice& device) {
-        vk::PhysicalDeviceMemoryProperties memProperties = device.physicalDevice().getMemoryProperties();
-        for (uint32_t i = 0; i < memProperties.memoryTypeCount; i++) {
-            if ((typeFilter & (1 << i)) && (memProperties.memoryTypes[i].propertyFlags & properties) == properties) {
-                return i;
-            }
-        }
-        throw std::runtime_error("failed to find suitable memory type!");
-    }
-
+ 
     void Texture::createTextureImageView(Renderer::VulkanDevice& device) {
         textureImageView = createImageView(textureImage, vk::Format::eR8G8B8A8Srgb, vk::ImageAspectFlagBits::eColor,mipLevels,device);
     }
-
-
-   [[nodiscard]] vk::raii::ImageView Texture::createImageView(vk::raii::Image& image, vk::Format format, vk::ImageAspectFlags aspectFlags, uint32_t mipLevels, Renderer::VulkanDevice& device) {
+     
+    [[nodiscard]] vk::raii::ImageView Texture::createImageView(vk::raii::Image& image, vk::Format format, vk::ImageAspectFlags aspectFlags, uint32_t mipLevels, Renderer::VulkanDevice& device) {
         vk::ImageViewCreateInfo viewInfo{ .image = image, .viewType = vk::ImageViewType::e2D,
             .format = format, .subresourceRange = { aspectFlags, 0, 1, 0, 1 } };
         viewInfo.subresourceRange.levelCount = mipLevels;
@@ -199,39 +169,8 @@ namespace CRATER::Resource {
         textureSampler = vk::raii::Sampler(device.logicalDevice(), samplerInfo);
     }
 
-    vk::Format Texture::findSupportedFormat(const std::vector<vk::Format>& candidates, vk::ImageTiling tiling, vk::FormatFeatureFlags features, Renderer::VulkanDevice& device) {
-        for (const auto format : candidates) {
-            vk::FormatProperties props = device.physicalDevice().getFormatProperties(format);
-
-            if (tiling == vk::ImageTiling::eLinear && (props.linearTilingFeatures & features) == features) {
-                return format;
-            }
-            if (tiling == vk::ImageTiling::eOptimal && (props.optimalTilingFeatures & features) == features) {
-                return format;
-            }
-        }
-
-        throw std::runtime_error("failed to find supported format!");
-    }
-
-    vk::Format Texture::findDepthFormat(Renderer::VulkanDevice& device) {
-        return findSupportedFormat(
-            { vk::Format::eD32Sfloat, vk::Format::eD32SfloatS8Uint, vk::Format::eD24UnormS8Uint },
-            vk::ImageTiling::eOptimal,
-            vk::FormatFeatureFlagBits::eDepthStencilAttachment,
-            device
-        );
-    }
-
     bool Texture::hasStencilComponent(vk::Format format) {
         return format == vk::Format::eD32SfloatS8Uint || format == vk::Format::eD24UnormS8Uint;
-    }
-
-    void Texture::createDepthResources(Renderer::VulkanDevice& device, vk::Extent2D& swapChainExtent) {
-        vk::Format depthFormat = findDepthFormat(device);
-        createImage(swapChainExtent.width, swapChainExtent.height,1, depthFormat, vk::ImageTiling::eOptimal, vk::ImageUsageFlagBits::eDepthStencilAttachment, vk::MemoryPropertyFlagBits::eDeviceLocal, depthImage, depthImageMemory, device);
-        depthImageView = createImageView(depthImage, depthFormat, vk::ImageAspectFlagBits::eDepth,1,device);
-
     }
 
     void Texture::generateMipmaps(vk::raii::Image& image, vk::Format imageFormat, int32_t texWidth, int32_t texHeight, uint32_t mipLevels,uint32_t layerCount, Renderer::VulkanDevice& device) {
@@ -303,3 +242,198 @@ namespace CRATER::Resource {
         endSingleTimeCommands(commandBuffer,device);
     }
 }  
+
+namespace CRATER::Resource {
+    void SkyboxTexture::createSkybox()
+    {
+        // ── 1. Load KTX2 file ─────────────────────────────────────────────────
+        ktxTexture2* ktx = nullptr;
+        KTX_error_code res = ktxTexture2_CreateFromNamedFile(
+            m_path.c_str(),
+            KTX_TEXTURE_CREATE_LOAD_IMAGE_DATA_BIT,
+            &ktx);
+
+        if (res != KTX_SUCCESS)
+            throw std::runtime_error(
+                std::string("[SkyboxTexture] Failed to load KTX2 file: ") + ktxErrorString(res));
+
+        // Sanity check — must be a cubemap (6 faces)
+        if (ktx->numFaces != 6)
+            throw std::runtime_error("[SkyboxTexture] KTX2 file is not a cubemap (numFaces != 6)");
+
+        std::cout << "[SkyboxTexture] KTX2 info:\n"
+            << "  path        : " << m_path << "\n"
+            << "  vkFormat    : " << ktx->vkFormat << "\n";
+
+        // ── 2. Transcode if supercompressed ───────────────────────────────────
+        vk::Format uploadFormat = static_cast<vk::Format>(ktx->vkFormat);
+
+        if (ktxTexture2_NeedsTranscoding(ktx)) {
+            const ktx_transcode_fmt_e target = selectTranscodeFormat(*m_device);
+
+            res = ktxTexture2_TranscodeBasis(ktx, target,0);
+            if (res != KTX_SUCCESS) {
+                ktxTexture_Destroy(ktxTexture(ktx));
+                throw std::runtime_error(
+                    std::string("[SkyboxTexture] TranscodeBasis failed: ") + ktxErrorString(res));
+            }
+
+            uploadFormat = static_cast<vk::Format>(ktx->vkFormat);
+        }
+
+        // ── 3. Upload, create view + sampler ──────────────────────────────────
+        try {
+            createCubemapImage(ktx, uploadFormat, m_allocator, *m_device);
+            createSkyboxImageView(uploadFormat, *m_device);
+            createSkyboxSampler(*m_device);
+        }
+        catch (...) {
+            ktxTexture_Destroy(ktxTexture(ktx));
+            throw;
+        }
+
+        ktxTexture_Destroy(ktxTexture(ktx));
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────────
+    // GPU upload — all 6 faces × all mip levels in one staging buffer
+    // ─────────────────────────────────────────────────────────────────────────────
+
+    void SkyboxTexture::createCubemapImage(ktxTexture2* ktx,
+        vk::Format                vkFmt,
+        VmaAllocator            allocator,
+        Renderer::VulkanDevice& device)
+    {
+        const uint32_t width = ktx->baseWidth;
+        const uint32_t height = ktx->baseHeight;
+        m_mipLevels = ktx->numLevels;
+
+        // ── a. Build one copy region per face per mip ─────────────────────────
+        // KTX2 memory layout: mip-major, then face, then layer.
+        // ktxTexture_GetImageOffset(ktx, level, layer=0, face) gives the offset.
+        std::vector<vk::BufferImageCopy> regions;
+        regions.reserve(m_mipLevels * 6);
+
+        for (uint32_t lvl = 0; lvl < m_mipLevels; ++lvl) {
+            for (uint32_t face = 0; face < 6; ++face) {
+                ktx_size_t offset = 0;
+                // In libktx the face index is the 3rd param for cube arrays
+                KTX_error_code res = ktxTexture_GetImageOffset(
+                    ktxTexture(ktx), lvl, 0, face, &offset);
+
+                if (res != KTX_SUCCESS)
+                    throw std::runtime_error("[SkyboxTexture] ktxTexture_GetImageOffset failed");
+
+                vk::BufferImageCopy region;
+                region.bufferOffset = static_cast<vk::DeviceSize>(offset);
+                region.bufferRowLength = 0;   // tightly packed
+                region.bufferImageHeight = 0;
+                region.imageSubresource = {
+                    vk::ImageAspectFlagBits::eColor,
+                    lvl,    // mip level
+                    face,   // baseArrayLayer = face index for cubemaps
+                    1       // layerCount
+                };
+                region.imageOffset = { 0, 0, 0 };
+                region.imageExtent = {
+                    std::max(1u, width >> lvl),
+                    std::max(1u, height >> lvl),
+                    1
+                };
+                regions.push_back(region);
+            }
+        }
+
+        // ── b. Single staging buffer for all face + mip data ──────────────────
+        const size_t totalBytes = ktxTexture_GetDataSize(ktxTexture(ktx));
+
+        VkBufferCreateInfo bufInfo{ VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO };
+        bufInfo.size = totalBytes;
+        bufInfo.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
+        bufInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+
+        VmaAllocationCreateInfo vmaInfo{};
+        vmaInfo.usage = VMA_MEMORY_USAGE_AUTO;
+        vmaInfo.flags = VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT
+            | VMA_ALLOCATION_CREATE_MAPPED_BIT;
+
+        m_stagingBuffer = VmaBuffer(allocator, bufInfo, vmaInfo);
+        memcpy(m_stagingBuffer.mappedData(),
+            ktxTexture_GetData(ktxTexture(ktx)),
+            totalBytes);
+
+        // ── c. Create cube VkImage ─────────────────────────────────────────────
+        createImage(width, height, m_mipLevels,
+            static_cast<vk::Format>(vkFmt),
+            vk::ImageTiling::eOptimal,
+            vk::ImageUsageFlagBits::eTransferDst | vk::ImageUsageFlagBits::eSampled,
+            vk::MemoryPropertyFlagBits::eDeviceLocal,vk::ImageCreateFlagBits::eCubeCompatible,6,
+            m_image, m_imageMemory, device);
+
+        // ── d. Transition all 6 faces → TransferDst ───────────────────────────
+        transitionImageLayout(m_image,
+            vk::ImageLayout::eUndefined,
+            vk::ImageLayout::eTransferDstOptimal,
+            m_mipLevels, 6, device);
+
+        // ── e. Copy all regions in one command buffer ──────────────────────────
+        auto cmd =beginSingleTimeCommands(device);
+        cmd.copyBufferToImage(m_stagingBuffer.buffer(),
+            *m_image,
+            vk::ImageLayout::eTransferDstOptimal,
+            regions);
+        endSingleTimeCommands(cmd, device);
+
+        // ── f. Transition → ShaderReadOnly ────────────────────────────────────
+        transitionImageLayout(m_image,
+            vk::ImageLayout::eTransferDstOptimal,
+            vk::ImageLayout::eShaderReadOnlyOptimal,
+            m_mipLevels, 6, device);
+    }
+ 
+
+    void SkyboxTexture::createSkyboxImageView(vk::Format                vkFmt,
+        Renderer::VulkanDevice& device)
+    {
+        vk::ImageViewCreateInfo info{};
+        info.image = *m_image;
+        info.viewType = vk::ImageViewType::eCube;
+        info.format = static_cast<vk::Format>(vkFmt);
+        info.subresourceRange = {
+            vk::ImageAspectFlagBits::eColor,
+            0,            // baseMipLevel
+            m_mipLevels,  // levelCount
+            0,            // baseArrayLayer
+            6             // layerCount — all 6 cube faces
+        };
+
+        m_imageView = vk::raii::ImageView(device.logicalDevice(), info);
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────────
+    // Sampler — clamp to edge, full mip range
+    // ─────────────────────────────────────────────────────────────────────────────
+
+    void SkyboxTexture::createSkyboxSampler(Renderer::VulkanDevice& device)
+    {
+        const auto props = device.physicalDevice().getProperties();
+
+        vk::SamplerCreateInfo info{};
+        info.magFilter = vk::Filter::eLinear;
+        info.minFilter = vk::Filter::eLinear;
+        info.mipmapMode = vk::SamplerMipmapMode::eLinear;
+
+        // Clamp to edge is correct for cubemaps — avoids seams at face boundaries
+        info.addressModeU = vk::SamplerAddressMode::eClampToEdge;
+        info.addressModeV = vk::SamplerAddressMode::eClampToEdge;
+        info.addressModeW = vk::SamplerAddressMode::eClampToEdge;
+
+        info.anisotropyEnable = vk::True;
+        info.maxAnisotropy = props.limits.maxSamplerAnisotropy;
+        info.compareEnable = vk::False;
+        info.minLod = 0.0f;
+        info.maxLod = static_cast<float>(m_mipLevels);
+
+        m_sampler = vk::raii::Sampler(device.logicalDevice(), info);
+    }
+}

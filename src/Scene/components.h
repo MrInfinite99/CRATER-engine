@@ -65,9 +65,13 @@ namespace CRATER::Scene {
 
 	struct MaterialComponent {
 		std::string materialID;
-		std::string materialPath;
-		std::string texturePath;
+		std::string shaderID;
 		PipelineType type= PipelineType::OpaqueMesh;
+	};
+
+	struct SkyboxComponent {
+		std::string skyboxID;
+		std::string skyboxPath;
 	};
 
  

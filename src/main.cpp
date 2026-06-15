@@ -7,7 +7,7 @@ int main() {
 	CRATER::Scene::Scene scene;
 
 	scene.initialize(glm::vec3(0.0f, 0.0f, 10.0f), glm::vec3(0.0f, 1.0f, 0.0f), -90.0f, 0.0f);
-	auto room = scene.CreateEntity();
+	/*auto room = scene.CreateEntity();
 
 	room.AddComponent< CRATER::Scene::TransformComponent>(
 		glm::vec3(0.0f, 0.0f, -1.0f),
@@ -24,7 +24,7 @@ int main() {
 		"vikingRoom",
 		"D:/vkguide/VkRE/shaders/basic.slang",
 		"D:/vkguide/VkRE/textures/viking_room.png"
-	);
+	);*/
 
 	auto room2 = scene.CreateEntity();
 
@@ -35,34 +35,23 @@ int main() {
 	);
 
 	room2.AddComponent<CRATER::Scene::MeshComponent>(
-		"vikingModel",
-		"D:/vkguide/VkRE/models/viking_room.obj"
+		"helmet",
+		"D:/vkguide/VkRE/models/DamagedHelmet.glb"
 	);
 
 	room2.AddComponent<CRATER::Scene::MaterialComponent>(
-		"vikingRoom",
+		"helmet",
 		"D:/vkguide/VkRE/shaders/basic.slang",
-		"D:/vkguide/VkRE/textures/viking_room.png"
+		 PipelineType::OpaqueMesh
 	);
 
 	auto skybox = scene.CreateEntity();
-	skybox.AddComponent< CRATER::Scene::TransformComponent>(
-		glm::vec3(0.0f, 0.0f, 0.0f),
-		glm::quat(1.0f, 0.0f, 0.0f, 0.0f),
-		glm::vec3(1.0f)
+	skybox.AddComponent< CRATER::Scene::SkyboxComponent>(
+		 "grasslands",
+		"D:/vkguide/VkRE/skybox/grass2.ktx2"
 	);
 
-	skybox.AddComponent < CRATER::Scene::MeshComponent>(
-		"skybox",
-			"D:/vkguide/VkRE/models/cube.obj"
-	);
-
-	skybox.AddComponent<CRATER::Scene::MaterialComponent>(
-		"skybox",
-		"D:/vkguide/VkRE/shaders/skybox.slang",
-		"D:/vkguide/VkRE/shaders/skybox.slang",
-		PipelineType::Skybox
-	);
+	 
 
 
 	CRATER::Engine engine;

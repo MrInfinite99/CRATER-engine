@@ -42,6 +42,46 @@ namespace CRATER::Resource{
 		 
 	} 
 
+    void VulkanVertexBuffer::createVertexBuffer(const std::vector<SkyboxVertex>& m_vertices, VmaAllocator allocator, Renderer::VulkanDevice& device) {
+        skyvertices = m_vertices;
+        vk::DeviceSize bufferSize = sizeof(skyvertices[0]) * skyvertices.size();
+
+        // Staging buffer
+        VkBufferCreateInfo stagingInfo = {
+            .sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
+            .size = bufferSize,
+            .usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+            .sharingMode = VK_SHARING_MODE_EXCLUSIVE
+        };
+
+        VmaAllocationCreateInfo stagingAllocInfo = {};
+        stagingAllocInfo.usage = VMA_MEMORY_USAGE_AUTO;
+        stagingAllocInfo.flags = VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT |
+            VMA_ALLOCATION_CREATE_MAPPED_BIT;
+
+        VmaBuffer stagingBuffer(allocator, stagingInfo, stagingAllocInfo);
+
+        // Copy data (already mapped)
+        memcpy(stagingBuffer.mappedData(), skyvertices.data(), bufferSize);
+
+        // Device-local vertex buffer
+        VkBufferCreateInfo bufferInfo = {
+            .sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
+            .size = bufferSize,
+            .usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+            .sharingMode = VK_SHARING_MODE_EXCLUSIVE
+        };
+
+        VmaAllocationCreateInfo allocInfo = {};
+        allocInfo.usage = VMA_MEMORY_USAGE_AUTO;
+
+        m_vertexBuffer = VmaBuffer(allocator, bufferInfo, allocInfo);
+
+        // Copy from staging to device-local
+        copyBuffer(stagingBuffer.buffer(), m_vertexBuffer.buffer(), bufferSize, device);
+
+    }
+
   
 
 	void VulkanVertexBuffer::copyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize size,Renderer::VulkanDevice& device) {
@@ -79,5 +119,23 @@ namespace CRATER::Resource{
             vk::VertexInputAttributeDescription{.location = 1, .binding = 0, .format = vk::Format::eR32G32B32Sfloat, .offset = offsetof(Vertex, color)},
             vk::VertexInputAttributeDescription{.location = 2, .binding = 0, .format = vk::Format::eR32G32Sfloat,    .offset = offsetof(Vertex, texCoord)}
         };
+    }
+
+
+    std::vector<vk::VertexInputBindingDescription> getSkyboxBindingDescription() {
+        return { {
+            .binding = 0,
+            .stride = sizeof(SkyboxVertex),
+            .inputRate = vk::VertexInputRate::eVertex
+        } };
+    }
+
+    std::vector<vk::VertexInputAttributeDescription> getSkyboxAttributeDescriptions() {
+        return { {
+            .location = 0,
+            .binding = 0,
+            .format = vk::Format::eR32G32B32Sfloat,
+            .offset = offsetof(SkyboxVertex, pos)
+        } };
     }
 }

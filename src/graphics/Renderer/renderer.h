@@ -2,38 +2,13 @@
 #include"../../Core/window.h"
 #include "validationLayers.h"
 #include"../Resources/vma/vma_allocator.h"
-#include"../Resources/textures/texture.h"
-#include"../Resources/models/model.h"
+#include"../Resources/resource_manager.h"
 #include"../constants.h"
 #include"../../Scene/Scene.h"
-#include"../Object/material.h"
-#include"../Object/mesh.h"
+#include"../Resources/Object/object.h"
+#include"../Resources/models/model.h"
  
-
-namespace CRATER::Renderer {
-
-
-	struct RenderObject {
-		glm::vec3 position = { 0.0f,0.0f,0.0f };
-		glm::quat rotation{ 1.0f, 0.0f, 0.0f, 0.0f };
-		glm::vec3 scale = { 1.0f, 1.0f, 1.0f };
-
-
-		Object::Mesh* mesh;
-		Object::Material* material;
-
-		glm::mat4 getModelMatrix() const {
-			glm::mat4 model = glm::translate(glm::mat4(1.0f), position);
-			model = model * glm::mat4_cast(rotation); // Convert Quat to Mat4 correctly
-			model = glm::scale(model, scale);
-			return model;
-		}
-	};
-}
-
-
  
-
 namespace CRATER::Renderer
 {
 	class Renderer {
@@ -51,7 +26,7 @@ namespace CRATER::Renderer
 			m_swapChain.createImageViews(m_device.logicalDevice(),1);
 			
 			createCommandPool();
-			depthtexture.createDepthResources(m_device, m_swapChain.extent());
+			depthTexture.createDepthResources(m_device, m_swapChain.extent());
 			uniformBuffer.createUniformBuffer(m_allocator, m_device);
 
 			createCommandBuffer();
@@ -65,7 +40,7 @@ namespace CRATER::Renderer
 				CRATER::Scene::TransformComponent,
 				CRATER::Scene::MeshComponent,
 				CRATER::Scene::MaterialComponent
-				> ();
+				 > ();
 
 
 			view.each([&](
@@ -73,34 +48,96 @@ namespace CRATER::Renderer
 				CRATER::Scene::MeshComponent& meshComp,
 				CRATER::Scene::MaterialComponent& materialComp) {
 
-					Object::Material* material = createMaterial(materialComp.materialID,materialComp.materialPath,materialComp.texturePath,materialComp.type);
-					Object::Mesh* mesh = createMesh(meshComp.meshID,meshComp.modelPath);
+					auto shaderHandle = resourceManager.Load<Resource::Shader>(
+						materialComp.shaderID,
+						&m_device.logicalDevice(),
+						&m_swapChain,
+						depthTexture.getDepthFormat(),
+						materialComp.type,
+						materialComp.shaderID,
+						"vertMain",
+						"fragMain"
 
-					RenderObject renderObj;
-					renderObj.mesh = mesh;
-					renderObj.material = material;
+					);
+
+					auto modelHandle = resourceManager.Load<Resource::Model>(
+						meshComp.meshID,
+						meshComp.modelPath,
+						&resourceManager,
+						&m_device,
+						m_allocator
+					);
+
+					auto materialHandle = resourceManager.Load<Resource::Material>(
+						materialComp.materialID,
+						&m_device,
+						shaderHandle
+					);
+
+					const auto& textures = modelHandle->GetTextures();
+
+					Resource::RenderObject renderObj;
+
+					for (const auto& meshHandle : modelHandle->GetMeshes()) {
+						Resource::ResourceHandle<Resource::Texture> texHandle;
+
+						const int matIdx = meshHandle->getMaterialIndex();
+						if (matIdx >= 0 && matIdx < static_cast<int>(textures.size()))
+							texHandle = textures[matIdx];
+
+						renderObj.meshBindings.push_back({ meshHandle, texHandle });
+					}
+
+					
+
 					renderObj.position = transform.position;
 					renderObj.rotation = transform.rotation;
 					renderObj.scale = transform.scale;
+
+					 
+					renderObj.material = materialHandle;
  
 					renderObjects.push_back(std::move(renderObj));
 				}
 			);
-		
-			//update descriptor set
-			for (auto& [name, material] : materials) {
-				for (uint32_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
-					materials[name]->updateDescriptors(m_device.logicalDevice(), i, uniformBuffer,*textures[name]);
+
+			std::unordered_set<Resource::Material*> updatedMaterials;
+
+			for (auto& obj : renderObjects) {
+				auto* mat = obj.material.Get();
+				for (auto& binding : obj.meshBindings) {
+					for (uint32_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
+						mat->updateDescriptors(m_device.logicalDevice(), i, uniformBuffer, *binding.texture);
+					}
 				}
 			}
 
-			for (auto& [name, material] : skyboxMaterials) {
-				for (uint32_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
-					skyboxMaterials[name]->updateDescriptors(m_device.logicalDevice(), i, uniformBuffer, *skyboxTextures[name]);
-				}
-			}
+			auto skyboxView = scene.getRegistry().view<CRATER::Scene::SkyboxComponent>();
 
-		  
+			skyboxView.each([&](CRATER::Scene::SkyboxComponent& skyComp) {
+				// Load the specialized skybox resource
+				skyboxHandle = resourceManager.Load<Resource::Skybox>(
+					skyComp.skyboxID,
+					skyComp.skyboxPath,
+					&m_device,
+					&m_swapChain,
+					depthTexture.getDepthFormat(),
+					m_allocator,
+					&resourceManager
+				);
+
+				// Immediately configure the skybox descriptor sets once loading finishes
+				if (skyboxHandle.IsValid()) {
+					for (uint32_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
+						skyboxHandle.Get()->getMaterial()->updateDescriptors(
+							m_device.logicalDevice(),
+							i,
+							uniformBuffer,
+							*skyboxHandle.Get()->getTexture()
+						);
+					}
+				}
+				});
 
 		}
 
@@ -135,10 +172,7 @@ namespace CRATER::Renderer
 		void createSyncObjects();
 		void initAllocator();
 		
-		Object::Material* createMaterial(const std::string& matID,const std::string& matPath,const std::string& texPath, PipelineType type);
-		Object::Mesh* createMesh(const std::string& meshID, const std::string& meshPath);
-		Object::Shader* createShader(const std::string& shaderPath, PipelineType type);
-
+	
 		void transition_image_layout(
 			vk::Image image,
 			vk::ImageLayout oldLayout,
@@ -170,32 +204,20 @@ namespace CRATER::Renderer
 		std::vector<vk::raii::Semaphore> presentCompleteSemaphores;
 		std::vector<vk::raii::Semaphore> renderFinishedSemaphores;
 		std::vector<vk::raii::Fence> inFlightFences;
-		//std::optional<vk::raii::Queue> graphicsQueue;
-		 
+ 
 		std::optional<vk::raii::Queue> presentQueue;
 
 		uint32_t frameIndex = 0;
 
 		bool framebufferResized = false;
 
-		std::vector<char> shaderCode;
-		Object::Shader shader{};
 		 
-
+		Resource::DepthTexture depthTexture;
 		Resource::VulkanUniformBuffer<UniformBufferObject> uniformBuffer{};
-	  
-		 
-		Resource::Texture depthtexture{};
 		PushConstant pushConstant{};
-		std::vector<RenderObject> renderObjects;
-		std::unordered_map<std::string, std::unique_ptr<Object::Shader>> shaders;
-		std::unordered_map<std::string, std::unique_ptr<Object::Mesh>> meshes;
-		std::unordered_map<std::string, std::unique_ptr<Object::Material>> materials;
-		std::unordered_map<std::string, std::unique_ptr<Object::Material>> skyboxMaterials;
-		std::unordered_map<std::string, std::unique_ptr<Resource::Texture>> textures;
-		std::unordered_map<std::string, std::unique_ptr<Resource::SkyboxTexture>> skyboxTextures;
-
-
-	
+		  
+		Resource::ResourceManager resourceManager;
+		std::vector<Resource::RenderObject> renderObjects;
+		Resource::ResourceHandle<Resource::Skybox> skyboxHandle;
 	};
 }

@@ -6,8 +6,7 @@
 #else
 import vulkan_hpp;
 #endif
-
-#include"../Resources/shaders/shader_compile.h"
+ 
 #include"../Resources/buffers/vertex_buffer.h"
 #include"descriptor_set.h"
 #include"../../engineTypes.h"
@@ -27,7 +26,7 @@ namespace CRATER::Renderer {
 		// Fixed-Function States
 		vk::PrimitiveTopology topology = vk::PrimitiveTopology::eTriangleList;
 		vk::PolygonMode polygonMode = vk::PolygonMode::eFill;
-		vk::CullModeFlags cullMode = vk::CullModeFlagBits::eFront;
+		vk::CullModeFlags cullMode = vk::CullModeFlagBits::eBack;
 		vk::FrontFace frontFace = vk::FrontFace::eClockwise;
 
 		// Depth / Stencil
@@ -46,9 +45,12 @@ namespace CRATER::Renderer {
 	inline void getConfiguredPipeline(PipelineType type, PipelineConfig& config) {
 		switch (type) {
 		case PipelineType::Skybox:
+			config.bindingDescriptions=Resource::getSkyboxBindingDescription();
+			config.attributeDescriptions=Resource::getSkyboxAttributeDescriptions();
 			config.depthWriteEnable = vk::False;
 			config.depthCompareOp = vk::CompareOp::eLessOrEqual;
 			config.cullMode = vk::CullModeFlagBits::eNone;
+			config.frontFace = vk::FrontFace::eCounterClockwise;
 			break;
 		case PipelineType::OpaqueMesh:
 			break;

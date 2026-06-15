@@ -15,6 +15,10 @@ struct Vertex {
 
 };
 
+struct SkyboxVertex {
+	glm::vec3 pos;
+};
+
 
 
 namespace std {

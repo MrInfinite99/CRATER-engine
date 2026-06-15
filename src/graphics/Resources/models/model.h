@@ -1,69 +1,55 @@
 #pragma once
-#include<tiny_obj_loader.h>
+#include<tiny_gltf.h>
+ 
 #include<unordered_map>
-#include"../vertex.h"
+#include"../Object/mesh.h"
+#include"../textures/texture.h"
+#include"../resource_manager.h"
 
 
 namespace CRATER::Resource{
-	class Model {
+
+    
+    
+
+	class Model:public Resource{
 	public:
-		void load(const char* model_path) {
-			tinyobj::attrib_t attrib;
-			std::vector<tinyobj::shape_t> shapes;
-			std::vector<tinyobj::material_t> materials;
-			std::string warn, err;
 
-			std::unordered_map<Vertex, uint32_t> uniqueVertices{};
+        ~Model() override { Unload(); }
+        Model(const std::string& resourceId,
+            const std::string& modelPath,
+            ResourceManager* manager,
+            Renderer::VulkanDevice* device,
+            VmaAllocator allocator) :
+            Resource(resourceId),
+            m_path(modelPath),
+            m_manager(manager),
+            m_device(device),
+            m_allocator(allocator)
+        {}
 
-			if (!tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, &err,model_path)) {
-				std::cerr << "Attempted path: " << model_path << std::endl;
-				throw std::runtime_error(warn + err);
-			}
-
-			for (const auto& shape : shapes) {
-				for (const auto& index : shape.mesh.indices) {
-					Vertex vertex{};
-
-
-
-					vertex.pos = {
-						attrib.vertices[3 * index.vertex_index + 0],
-						attrib.vertices[3 * index.vertex_index + 1],
-						attrib.vertices[3 * index.vertex_index + 2]
-					};
-
-					if (index.texcoord_index >= 0) {
-						vertex.texCoord = {
-								attrib.texcoords[2 * index.texcoord_index + 0],
-								1.0f - attrib.texcoords[2 * index.texcoord_index + 1]
-						};
-					}
-					vertex.color = { 1.0f, 1.0f, 1.0f };
-
-
-
-					if (uniqueVertices.count(vertex) == 0) {
-						uniqueVertices[vertex] = static_cast<uint32_t>(vertices.size());
-						vertices.push_back(vertex);
-					}
-					indices.push_back(uniqueVertices[vertex]);
-				}
-			}
-		}
-
-			const std::vector<Vertex>& getVertices() {
-				return vertices;
-			}
-
-			const std::vector<uint32_t>& getIndices() {
-				return indices;
-			}
-
+        const std::vector<ResourceHandle<Mesh>>& GetMeshes()   const { return meshData; }
+        const std::vector<ResourceHandle<Texture>>& GetTextures() const { return textureData; }
+        
+        
+        bool doLoad() override;
+        void doUnload() override;
 	private:
-		
-		
-		std::vector<uint32_t> indices;
+        TextureData loadKtxFromBufferView(const tinygltf::Model& model,
+            int                    imageIndex,
+            const std::string& name);
 
-		std::vector<Vertex> vertices;
+        void parseMeshes(const tinygltf::Model& model);
+        void parseTextures(const tinygltf::Model& model);
+
+        
+        std::string               m_path;
+        ResourceManager* m_manager;
+        Renderer::VulkanDevice* m_device;
+        VmaAllocator      m_allocator;
+        std::vector<MeshData> m_meshes;
+        std::vector<TextureData> m_textures;
+        std::vector<ResourceHandle<Mesh>>    meshData;
+        std::vector<ResourceHandle<Texture>> textureData;
 	};
 };

@@ -9,11 +9,12 @@
         "vulkan"
       ]
     },
+    "spirv-headers",
     "stb",
+    "tinygltf",
     "tinyobjloader",
     "vulkan",
     "vulkan-memory-allocator-hpp",
-    "spirv-headers"
-    
+    "ktx"
   ]
 }

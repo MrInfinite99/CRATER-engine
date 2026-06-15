@@ -92,7 +92,7 @@ namespace CRATER::Renderer
 		);
 
 		transition_image_layout(
-			depthtexture.depthimage(),
+			depthTexture.depthimage(),
 			vk::ImageLayout::eUndefined,
 			vk::ImageLayout::eDepthAttachmentOptimal,
 			vk::AccessFlagBits2::eDepthStencilAttachmentWrite,
@@ -112,7 +112,7 @@ namespace CRATER::Renderer
 		};
 
 		vk::RenderingAttachmentInfo depthAttachmentInfo = {
-	.imageView = depthtexture.depthimageview(),
+	.imageView = depthTexture.depthimageview(),
 	.imageLayout = vk::ImageLayout::eDepthAttachmentOptimal,
 	.loadOp = vk::AttachmentLoadOp::eClear,
 	.storeOp = vk::AttachmentStoreOp::eDontCare,
@@ -128,63 +128,110 @@ namespace CRATER::Renderer
 
 		commandBuffer.beginRendering(renderingInfo);
 
-		Object::Material* currentMaterial = nullptr;
-		Object::Mesh* currentMesh = nullptr;
+		 
 		for (auto& obj : renderObjects) {
 
-			if (obj.material != currentMaterial) {
-				currentMaterial = obj.material;
- 
-
+			 
 				commandBuffer.bindPipeline(
 					vk::PipelineBindPoint::eGraphics,
-					currentMaterial->shaderRef->graphicsPipeline.pipeline()
+					obj.material.Get()->getShader()->pipeline().pipeline()
 				);
 
 				commandBuffer.bindDescriptorSets(
 					vk::PipelineBindPoint::eGraphics,
-					*currentMaterial->shaderRef->pipelineLayout.layout(),
+					*obj.material.Get()->getShader()->layout().layout(),
 					0,
-					*currentMaterial->descriptorSets[frameIndex],
+					*obj.material.Get()->getDescriptorSet()[frameIndex],
 					nullptr
 				);
 
 
 				 
-			}
+			
 			 
 			commandBuffer.setViewport(0, vk::Viewport(0.0f, 0.0f, static_cast<float>(m_swapChain.extent().width), static_cast<float>(m_swapChain.extent().height), 0.0f, 1.0f));
 			commandBuffer.setScissor(0, vk::Rect2D(vk::Offset2D(0, 0), m_swapChain.extent()));
 
 
-			if (obj.mesh != currentMesh) {
-				currentMesh = obj.mesh;
+			for (auto& binding : obj.meshBindings) {
 				commandBuffer.bindVertexBuffers(
 					0,
-					static_cast<vk::Buffer>(obj.mesh->vertexBuffer.get()),
+					static_cast<vk::Buffer>(binding.mesh.Get()->getVertexBuffer().get()),
 					{ 0 }
 				);
 
 
 				commandBuffer.bindIndexBuffer(
-					static_cast<vk::Buffer>(obj.mesh->indexBuffer.get()),
+					static_cast<vk::Buffer>(binding.mesh.Get()->getIndexBuffer().get()),
 					0,
 					vk::IndexType::eUint32
 				);
-			}
+		 }
+				 
+				
+			
 
 			StandardPushConstants pc{};
 			pc.model = obj.getModelMatrix();
 			commandBuffer.pushConstants<StandardPushConstants>(
-				*obj.material->shaderRef->pipelineLayout.layout(),
+				*obj.material.Get()->getShader()->layout().layout(),
 				vk::ShaderStageFlagBits::eVertex,  // ✓ Match the range
 				0,
 				pc
 			);
 
+			for (auto& binding : obj.meshBindings) {
+				commandBuffer.drawIndexed(
+					static_cast<uint32_t>(binding.mesh.Get()->getIndexBuffer().getIndicesSize()),
+					1,
+					0,
+					0,
+					0
+				);
+			}
+			
+		}
+
+		if (skyboxHandle.IsValid()) {
+			auto* skybox = skyboxHandle.Get();
+			auto* skyMaterial = skybox->getMaterial();
 			 
+
+			// Bind the specialized skybox pipeline (Depth Write: OFF, Depth Compare: LESS_OR_EQUAL)
+			commandBuffer.bindPipeline(
+				vk::PipelineBindPoint::eGraphics,
+				skyMaterial->getShader()->pipeline().pipeline()
+			);
+
+			// Bind the skybox descriptor set containing your UBO and SamplerCube
+			commandBuffer.bindDescriptorSets(
+				vk::PipelineBindPoint::eGraphics,
+				*skyMaterial->getShader()->layout().layout(),
+				0,
+				*skyMaterial->getDescriptorSet()[frameIndex],
+				nullptr
+			);
+
+			// Set viewport/scissor to match the frame configuration
+			commandBuffer.setViewport(0, vk::Viewport(0.0f, 0.0f, static_cast<float>(m_swapChain.extent().width), static_cast<float>(m_swapChain.extent().height), 0.0f, 1.0f));
+			commandBuffer.setScissor(0, vk::Rect2D(vk::Offset2D(0, 0), m_swapChain.extent()));
+
+			// Bind the hardcoded 1x1x1 cube geometry buffers
+			commandBuffer.bindVertexBuffers(
+				0,
+				static_cast<vk::Buffer>(skybox->getVertexBuffer().get()),
+				{ 0 }
+			);
+
+			commandBuffer.bindIndexBuffer(
+				static_cast<vk::Buffer>(skybox->getIndexBuffer().get()),
+				0,
+				vk::IndexType::eUint32
+			);
+
+			// Issue the skybox draw call (Will automatically render behind everything else)
 			commandBuffer.drawIndexed(
-				static_cast<uint32_t>(obj.mesh->indexBuffer.getIndicesSize()),
+				static_cast<uint32_t>(skybox->getIndexBuffer().getIndicesSize()),
 				1,
 				0,
 				0,
@@ -275,7 +322,7 @@ namespace CRATER::Renderer
 		{
 			 
 			m_swapChain.recreateSwapChain(m_device.logicalDevice(), m_device.physicalDevice(), m_surface, m_window);
-			depthtexture.createDepthResources(m_device, m_swapChain.extent());
+			depthTexture.createDepthResources(m_device, m_swapChain.extent());
 			return;
 		}
 		if (result != vk::Result::eSuccess && result != vk::Result::eSuboptimalKHR)
@@ -338,7 +385,7 @@ namespace CRATER::Renderer
 			framebufferResized = false;
 			//std::cout << "AAAAAAAAAAA" << std::endl;
 			m_swapChain.recreateSwapChain(m_device.logicalDevice(),m_device.physicalDevice(), m_surface, m_window);
-			depthtexture.createDepthResources(m_device, m_swapChain.extent());
+			depthTexture.createDepthResources(m_device, m_swapChain.extent());
 		}
 		else
 		{
@@ -367,104 +414,16 @@ namespace CRATER::Renderer
 		m_allocator = VmaAllocatorRAII(allocatorInfo);
 	}
 
-	Object::Shader* Renderer::createShader(const std::string& shaderPath,PipelineType type) {
-		auto it = shaders.find(shaderPath);
-		if (it != shaders.end()) {
-			return it->second.get();
-		}
+	 
 
-		auto shader = std::make_unique<Object::Shader>();
-		auto shaderCode = Resource::ShaderCompiler::get().compileShader(shaderPath, "vertMain", "fragMain");
-		shader->init(m_device.logicalDevice(),
-			m_swapChain,
-			shaderCode,
-			depthtexture.findDepthFormat(m_device),
-			type
-		);
+	 
 
-		auto [newIt,_]=shaders.emplace(shaderPath, std::move(shader));
-		return newIt->second.get();
-	}
-	
-
-	Object::Material* Renderer::createMaterial(const std::string& matID, const std::string& matPath,const std::string& texPath, PipelineType type) {
-
-		auto it = materials.find(matID);
-		if (it != materials.end()) {
-			return it->second.get();
-		}
-
-		Object::Shader* shader = createShader(matPath,type);
-
-		auto material = std::make_unique<Object::Material>();
-		material->init(m_device.logicalDevice(),shader);
-
-		Object::Material* ptr = material.get();
-
-		if (type == PipelineType::OpaqueMesh) {
-
-			auto texture = std::make_unique<Resource::Texture>();
-
-			texture->createTexture(texPath.c_str(), m_allocator, m_device);
-
-			textures.emplace(matID, std::move(texture));
-
-			
-
-			materials.emplace(matID, std::move(material));
-		}
-		else if (type == PipelineType::Skybox) {
-			auto texture = std::make_unique<Resource::SkyboxTexture>();
-
-			std::vector<std::string> skyboxTexPath = {
+	 /*std::vector<std::string> skyboxTexPath = {
 				"D:/vkguide/VkRE/textures/skybox/right.jpg",
 				"D:/vkguide/VkRE/textures/skybox/left.jpg",
 				"D:/vkguide/VkRE/textures/skybox/top.jpg",
 				"D:/vkguide/VkRE/textures/skybox/bottom.jpg",
 				"D:/vkguide/VkRE/textures/skybox/front.jpg",
 				"D:/vkguide/VkRE/textures/skybox/back.jpg"
-			};
-
-			texture->createSkybox(skyboxTexPath, m_allocator, m_device);
-
-			skyboxTextures.emplace(matID, std::move(texture));
-
-			skyboxMaterials.emplace(matID, std::move(material));
-		}
-
-		
-
-		return ptr;
-	}
-
-	Object::Mesh* Renderer::createMesh(const std::string& meshID, const std::string& meshPath) {
-		auto it = meshes.find(meshID);
-		if (it != meshes.end()) {
-			return it->second.get();
-		}
-
-
-		Resource::Model model;
-		model.load(meshPath.c_str());
-
-		auto mesh = std::make_unique<Object::Mesh>();
-
-		mesh->vertexBuffer.createVertexBuffer(
-			model.getVertices(),
-			m_allocator,
-			m_device
-		);
-		mesh->indexBuffer.createIndexBuffer(
-			model.getIndices(),
-			m_allocator,
-			m_device
-		);
-
-		
-
-		Object::Mesh* ptr = mesh.get();
-		meshes.emplace(meshID, std::move(mesh));
-
-		return ptr;
-	}
+			};*/
 }          
