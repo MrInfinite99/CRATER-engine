@@ -3,6 +3,7 @@
     "entt",
     "glm",
     "imgui",
+    "ktx",
     {
       "name": "sdl3",
       "features": [
@@ -15,6 +16,6 @@
     "tinyobjloader",
     "vulkan",
     "vulkan-memory-allocator-hpp",
-    "ktx"
+    "shader-slang"
   ]
 }

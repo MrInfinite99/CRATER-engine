@@ -30,7 +30,7 @@ int main() {
 
 	room2.AddComponent< CRATER::Scene::TransformComponent>(
 		glm::vec3(2.0f, 2.0f, 2.0f),
-		glm::quat(0.0f, 0.0f, 0.0f, 0.0f),
+		glm::vec3(0.0f, 0.0f, 0.0f),
 		glm::vec3(1.0f)
 	);
 
@@ -41,7 +41,7 @@ int main() {
 
 	room2.AddComponent<CRATER::Scene::MaterialComponent>(
 		"helmet",
-		"D:/vkguide/VkRE/shaders/basic.slang",
+		"D:/vkguide/VkRE/shaders/gooch.slang",
 		 PipelineType::OpaqueMesh
 	);
 

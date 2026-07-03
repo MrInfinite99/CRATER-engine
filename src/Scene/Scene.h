@@ -26,11 +26,9 @@ namespace CRATER::Scene {
 			if (entity) m_Registry.destroy(entity.GetHandle());
 		}
 
-		void Update(float deltaTime) {
-			 
-		}
+	 
 
-		void processEvents(SDL_Event& event,float deltaTime) {
+		void processEvents(SDL_Event& event, float deltaTime) {
 			cameraSystem.processInput(event, deltaTime);
 		}
 

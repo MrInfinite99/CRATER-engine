@@ -3,7 +3,8 @@
  
 #include<unordered_map>
 #include"../Object/mesh.h"
-#include"../textures/texture.h"
+#include"../Object/material.h"
+
 #include"../resource_manager.h"
 
 
@@ -30,6 +31,7 @@ namespace CRATER::Resource{
 
         const std::vector<ResourceHandle<Mesh>>& GetMeshes()   const { return meshData; }
         const std::vector<ResourceHandle<Texture>>& GetTextures() const { return textureData; }
+        const std::vector<MaterialData>& GetMaterials() const { return m_materials; }
         
         
         bool doLoad() override;
@@ -39,8 +41,9 @@ namespace CRATER::Resource{
             int                    imageIndex,
             const std::string& name);
 
-        void parseMeshes(const tinygltf::Model& model);
-        void parseTextures(const tinygltf::Model& model);
+        bool parseMeshes(const tinygltf::Model& model);
+        bool parseTextures(const tinygltf::Model& model);
+        bool parseMaterials(const tinygltf::Model& model);
 
         
         std::string               m_path;
@@ -49,7 +52,9 @@ namespace CRATER::Resource{
         VmaAllocator      m_allocator;
         std::vector<MeshData> m_meshes;
         std::vector<TextureData> m_textures;
+        std::vector<MaterialData> m_materials;
         std::vector<ResourceHandle<Mesh>>    meshData;
         std::vector<ResourceHandle<Texture>> textureData;
+        
 	};
 };

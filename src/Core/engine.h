@@ -1,39 +1,22 @@
 #pragma once
+#include "../graphics/Renderer/vulkanContext.h"
 #include "../graphics/Renderer/renderer.h"
- 
 
 namespace CRATER {
 	class Engine {
 	public:
+		Engine() = default;
+		~Engine() = default;
 
+		void init(CRATER::Scene::Scene& scene);
+		void run(CRATER::Scene::Scene& scene);
 
-		Engine() {
-			std::cout << "starting" << std::endl;
-			
-			//renderer->init();
-		}
-		
-		~Engine() {
-			std::cout << "engine stopped" << std::endl;
-		};
-
-		void run(CRATER::Scene::Scene& scene) {
-			 
-			mainLoop(scene);
-			cleanup();
-		}
-
-		void init(CRATER::Scene::Scene& scene) {
-			renderer = std::make_unique<CRATER::Renderer::Renderer>();
-			renderer->setup(scene);
-		}
-		 
 	private:
-		float deltaTime{ 0.0f };
 		void mainLoop(CRATER::Scene::Scene& scene);
-		void cleanup();
-		void processInput(SDL_Event& e, CRATER::Scene::Scene& scene, float deltaTime);
+		 
+		void processInput(SDL_Event& e, float deltaTime, CRATER::Scene::Scene& scene);
 
-		std::unique_ptr<Renderer::Renderer> renderer{ nullptr };
+		std::unique_ptr<Renderer::VulkanContext> m_context;
+		std::unique_ptr<Renderer::Renderer>      m_renderer;
 	};
 }

@@ -24,6 +24,7 @@ find_package(EnTT CONFIG REQUIRED)
 find_package(VulkanMemoryAllocator CONFIG REQUIRED)
 find_package(SPIRV-Headers CONFIG REQUIRED)
 find_package(ktx CONFIG REQUIRED)
+find_package(slang CONFIG REQUIRED)
 
 # Add source to this project's executable.
  
@@ -39,6 +40,7 @@ set(RENDERER
     src/graphics/Renderer/renderer.cpp 
     src/graphics/Renderer/swap_chain.cpp 
     src/graphics/Renderer/descriptor_set.cpp 
+    src/graphics/Renderer/vulkanContext.cpp
      
 )
 
@@ -91,6 +93,7 @@ target_link_libraries(${PROJECT_NAME}
         GPUOpen::VulkanMemoryAllocator 
         SPIRV-Headers::SPIRV-Headers
         KTX::ktx
+        slang::slang
 )
 
 target_compile_definitions(${PROJECT_NAME} PRIVATE 

@@ -2,9 +2,9 @@
 #include"camera_system.h"
 
 namespace CRATER::Scene {
-    void CameraSystem::update( ) {
+    void CameraSystem::update() {
 
-        glm::vec3 newFront;
+        glm::vec3 newFront{};
         newFront.x = cos(glm::radians(yaw)) * cos(glm::radians(pitch));
         newFront.y = sin(glm::radians(pitch));
         newFront.z = sin(glm::radians(yaw)) * cos(glm::radians(pitch));
@@ -24,13 +24,13 @@ namespace CRATER::Scene {
         return glm::perspective(glm::radians(zoom), aspectRatio, nearPlane, farPlane);
     }
 
-	void CameraSystem::processKeyboard(CameraMovement direction,float deltaTime) {
-		float velocity = movementSpeed * deltaTime;
+    void CameraSystem::processKeyboard(CameraMovement direction, float deltaTime) {
+        float velocity = movementSpeed * deltaTime;
 
-		switch (direction) {
-		case CameraMovement::FORWARD:
-			position += front * velocity;
-			break;
+        switch (direction) {
+        case CameraMovement::FORWARD:
+            position += front * velocity;
+            break;
         case CameraMovement::BACKWARD:
             position -= front * velocity;
             break;
@@ -46,8 +46,8 @@ namespace CRATER::Scene {
         case CameraMovement::DOWN:
             position -= up * velocity;
             break;
-		}
-	}
+        }
+    }
 
     void CameraSystem::processInput(SDL_Event& e, float deltaTime) {
         const bool* keys = SDL_GetKeyboardState(nullptr);
@@ -64,7 +64,7 @@ namespace CRATER::Scene {
             processMouseMovement(e.motion.x, e.motion.y);
         }
         if (e.type == SDL_EVENT_MOUSE_WHEEL) {
-            zoom -= e.wheel.y*scrollSensitivity;
+            zoom -= e.wheel.y * scrollSensitivity;
 
             if (zoom < 1.0f)  zoom = 1.0f;
             if (zoom > 90.0f) zoom = 90.0f;
@@ -72,12 +72,12 @@ namespace CRATER::Scene {
     }
 
     void CameraSystem::processMouseMovement(float xpos, float ypos) {
-        
- 
+
+
         if (firstMouse) {
-            lastX = xpos;               
+            lastX = xpos;
             lastY = ypos;
-            firstMouse = false;         
+            firstMouse = false;
         }
 
         float xOffset = xpos - lastX;                   // Horizontal movement (left-right)
@@ -96,8 +96,9 @@ namespace CRATER::Scene {
         pitch = std::clamp(pitch, -89.0f, 89.0f);
 
         // Update camera vectors based on updated Euler angles
-        update( );
+        update();
     }
 
 
 }
+

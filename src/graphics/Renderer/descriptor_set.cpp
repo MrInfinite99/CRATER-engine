@@ -74,7 +74,11 @@ namespace CRATER::Renderer {
 	}
  
 	void DescriptorSet::updateBuffer(vk::raii::Device& device, uint32_t frameIdx, const std::string& name,vk::DescriptorBufferInfo& bufferInfo) {
-		auto& info = layoutRef->getReflectionMap().at(name);
+		const auto& reflectionMap = layoutRef->getReflectionMap();
+		auto it = reflectionMap.find(name);
+		if (it == reflectionMap.end())
+			return;   // shader doesn't declare this binding — nothing to update
+		const auto& info = it->second;
 
 		vk::WriteDescriptorSet write{
 			.dstSet = *descriptorSets[frameIdx],
@@ -89,7 +93,11 @@ namespace CRATER::Renderer {
 
 
 	void DescriptorSet::updateImage(vk::raii::Device& device, uint32_t frameIdx, const std::string& name, vk::DescriptorImageInfo& imageInfo) {
-		auto& info = layoutRef->getReflectionMap().at(name);
+		const auto& reflectionMap = layoutRef->getReflectionMap();
+		auto it = reflectionMap.find(name);
+		if (it == reflectionMap.end())
+			return;   // shader doesn't declare this binding — nothing to update
+		const auto& info = it->second;
 
 		vk::WriteDescriptorSet write{
 			.dstSet = *descriptorSets[frameIdx],
@@ -130,35 +138,32 @@ namespace CRATER::Renderer {
 
 		if (pushConstantCount > 0) {
 			std::vector<SpvReflectBlockVariable*> pushConstants(pushConstantCount);
-			result = spvReflectEnumeratePushConstantBlocks(&module, &pushConstantCount, pushConstants.data());
-
-			if (result != SPV_REFLECT_RESULT_SUCCESS) {
-				spvReflectDestroyShaderModule(&module);
-				throw std::runtime_error("Failed to get push constant blocks");
-			}
-
-			// We expect only one push constant block
-			if (pushConstantCount > 1) {
-				std::cerr << "Warning: Multiple push constant blocks found, using the first one\n";
-			}
+			spvReflectEnumeratePushConstantBlocks(&module, &pushConstantCount, pushConstants.data());
 
 			const SpvReflectBlockVariable* block = pushConstants[0];
-
 			m_name = block->name ? block->name : "PushConstant";
 			m_offset = block->offset;
 			m_size = block->size;
-
-		 
-
-			// Create Vulkan range
-			m_range.stageFlags = static_cast<vk::ShaderStageFlags>(module.shader_stage);
 			m_range.offset = m_offset;
 			m_range.size = m_size;
+
+			// iterate all entry points and OR their stage flags
+			for (uint32_t i = 0; i < module.entry_point_count; i++) {
+				const SpvReflectEntryPoint& ep = module.entry_points[i];
+
+				// check if this entry point actually uses the push constant
+				for (uint32_t j = 0; j < ep.used_push_constant_count; j++) {
+					m_range.stageFlags |= static_cast<vk::ShaderStageFlags>(ep.shader_stage);
+					std::cout << "Stage: "
+						<< vk::to_string(static_cast<vk::ShaderStageFlagBits>(ep.shader_stage))
+						<< " uses pushData\n";
+				}
+			}
 
 			std::cout << "Reflected push constant: " << m_name
 				<< " (size: " << m_size << " bytes, offset: " << m_offset << ")\n";
 		}
-	 
+
 		spvReflectDestroyShaderModule(&module);
 	}
 }

@@ -53,6 +53,7 @@ namespace CRATER::Renderer {
 			config.frontFace = vk::FrontFace::eCounterClockwise;
 			break;
 		case PipelineType::OpaqueMesh:
+			config.cullMode = vk::CullModeFlagBits::eNone;
 			break;
 		}
 	}

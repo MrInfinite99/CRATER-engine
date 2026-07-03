@@ -21,7 +21,8 @@ namespace CRATER::Scene {
 	class CameraSystem  {
 	private:
 		bool firstMouse = true;
-	    float lastX = 0.0f, lastY = 0.0f;
+		float lastX = 0.0f;
+		float lastY = 0.0f;
 
 		glm::vec3 position;
 		glm::vec3 front;
@@ -71,7 +72,7 @@ namespace CRATER::Scene {
 		glm::mat4 getProjectionMatrix(float aspectRatio,float nearPlane =0.1f,float farPlane=100.0f) const;
 
 		void processKeyboard(CameraMovement direction, float deltaTime);     // Keyboard-based translation
-		void processMouseMovement(float xpos, float ypos);  // Mouse-based rotation
+		void processMouseMovement(float xrel, float yrel);
 		 
 
 

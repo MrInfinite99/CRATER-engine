@@ -1,4 +1,5 @@
 #include"shader.h"
+#include"embedded_shaders.h"
 
 namespace CRATER::Resource {
 
@@ -7,6 +8,7 @@ namespace CRATER::Resource {
         Renderer::VulkanSwapChain* swapChain,
         vk::Format format,
         PipelineType pipelineType,
+        slang::IGlobalSession* slangSession,
         const std::string& shaderPath,
         const std::string& vertEntryPoint,
         const std::string& fragEntryPoint)
@@ -15,55 +17,79 @@ namespace CRATER::Resource {
         m_swapChain(swapChain),
         m_format(format),
         m_pipelineType(pipelineType),
+        m_slangSession(slangSession),
+        m_shaderPath(shaderPath),
         m_vertEntryPoint(vertEntryPoint),
         m_fragEntryPoint(fragEntryPoint)
     {
-        std::string outputPath = "temp_shader.spv";
-
-        // Build slangc command
-        std::ostringstream command;
-        command << "slangc "
-            << shaderPath
-            << " -target spirv"
-            << " -profile spirv_1_4"
-            << " -emit-spirv-directly"
-            << " -fvk-use-entrypoint-name"
-            << " -entry " << vertEntryPoint
-            << " -entry " << fragEntryPoint
-            << " -o " << outputPath;
-
-        // Execute compiler
-        int result = std::system(command.str().c_str());
-        if (result != 0) {
-            throw std::runtime_error("Failed to compile shader: " + shaderPath);
-        }
-
-        // Read compiled SPIR-V file
-        std::ifstream file(outputPath, std::ios::binary | std::ios::ate);
-        if (!file.is_open()) {
-            throw std::runtime_error("Failed to read compiled shader");
-        }
-
-        std::streamsize size = file.tellg();
-        file.seekg(0, std::ios::beg);
-
-        std::vector<char> spirvCode(size);
-        if (!file.read(spirvCode.data(), size)) {
-            throw std::runtime_error("Failed to read SPIR-V data");
-        }
-
-        file.close();
-
-        // Cleanup temp file
-        std::remove(outputPath.c_str());
-
-        m_spirvCode = spirvCode;
-
+       
 
     }
 
     bool Shader::doLoad() {
         try {
+            slang::TargetDesc target{};
+            target.format = SLANG_SPIRV;
+            target.profile = m_slangSession->findProfile("spirv_1_4");
+            target.flags = SLANG_TARGET_FLAG_GENERATE_SPIRV_DIRECTLY;
+
+            auto dir = std::filesystem::path(m_shaderPath).parent_path().string();
+            const char* searchPaths[] = { dir.c_str() };
+
+            slang::SessionDesc sessionDesc{};
+            sessionDesc.targets = &target;
+            sessionDesc.targetCount = 1;
+            sessionDesc.searchPaths = searchPaths;
+            sessionDesc.searchPathCount = 1;
+
+            Slang::ComPtr<slang::ISession> session;
+            m_slangSession->createSession(sessionDesc, session.writeRef());
+
+            // loadModule takes just the stem: "basic" finds "basic.slang"
+            auto moduleName = std::filesystem::path(m_shaderPath).stem().string();
+
+            Slang::ComPtr<ISlangBlob> diagnostics;
+            slang::IModule* mod = session->loadModule(moduleName.c_str(), diagnostics.writeRef());
+            if (diagnostics && diagnostics->getBufferSize() > 0)
+                std::cerr << "[Shader] " << (const char*)diagnostics->getBufferPointer();
+
+            if (!mod) {
+                std::cerr << "[Shader] File load failed for " << m_shaderPath
+                          << " — compiling embedded fallback\n";
+                diagnostics = nullptr;
+                mod = session->loadModuleFromSourceString(
+                    moduleName.c_str(),
+                    m_shaderPath.c_str(),
+                    kEmbeddedBasicShader,
+                    diagnostics.writeRef()
+                );
+                if (diagnostics && diagnostics->getBufferSize() > 0)
+                    std::cerr << "[Shader] Embedded: " << (const char*)diagnostics->getBufferPointer();
+                if (!mod)
+                    throw std::runtime_error("Embedded fallback shader also failed: " + m_shaderPath);
+            }
+
+            Slang::ComPtr<slang::IEntryPoint> vertEntry, fragEntry;
+            mod->findEntryPointByName(m_vertEntryPoint.c_str(), vertEntry.writeRef());
+            mod->findEntryPointByName(m_fragEntryPoint.c_str(), fragEntry.writeRef());
+
+            slang::IComponentType* parts[] = { mod, vertEntry, fragEntry };
+            Slang::ComPtr<slang::IComponentType> composed;
+            session->createCompositeComponentType(parts, 3, composed.writeRef(), diagnostics.writeRef());
+
+            Slang::ComPtr<slang::IComponentType> linked;
+            composed->link(linked.writeRef(), diagnostics.writeRef());
+
+            Slang::ComPtr<ISlangBlob> spirv;
+            linked->getTargetCode(0, spirv.writeRef(), diagnostics.writeRef());
+            if (!spirv)
+                throw std::runtime_error("Failed to get SPIR-V: " + m_shaderPath);
+
+            auto* data = static_cast<const char*>(spirv->getBufferPointer());
+            m_spirvCode.assign(data, data + spirv->getBufferSize());
+
+
+
             m_descriptorSetLayout.reflectShader(m_spirvCode);
             m_descriptorSetLayout.create(*m_device);
             m_pushConstant.reflectShader(m_spirvCode);
@@ -73,9 +99,9 @@ namespace CRATER::Resource {
             m_graphicsPipeline.create(
                 m_pipelineLayout,
                 *m_device,
-                (*m_swapChain).extent(),
-                (*m_swapChain).format(),
-                (*m_swapChain).surfaceFormat(),
+                m_swapChain->extent(),
+                m_swapChain->format(),
+                m_swapChain->surfaceFormat(),
                 m_spirvCode,
                 m_format,
                 m_pipelineType
@@ -84,17 +110,18 @@ namespace CRATER::Resource {
             return true;
         }
         catch (const std::exception& e) {
-            std::cerr << "[Shader] doLoad failed  " << e.what() << "\n";//std::cerr << "[Shader] doLoad failed (" << m_shaderPath << "): " << e.what() << "\n";
+            std::cerr << "[Shader] doLoad failed  " << e.what() << "\n";
             
             return false;
         }
     }
 
     void Shader::doUnload() {
-       // m_graphicsPipeline=std::move(Renderer::GraphicsPipeline{});
+        //m_graphicsPipeline=Renderer::GraphicsPipeline{};
        // m_pipelineLayout = Renderer::PipelineLayout{};
        // m_pushConstant = Renderer::PushConstant{};
         m_descriptorSetLayout = Renderer::DescriptorSetLayout{};
+        m_spirvCode.clear();
     }
 
 

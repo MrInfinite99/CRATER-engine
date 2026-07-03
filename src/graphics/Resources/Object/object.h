@@ -5,24 +5,45 @@
 namespace CRATER::Resource {
 	struct RenderObject {
 		glm::vec3 position = { 0.0f,0.0f,0.0f };
-		glm::quat rotation{ 1.0f, 0.0f, 0.0f, 0.0f };
+		glm::vec3 rotation{ 0.0f, 0.0f, 0.0f};
 		glm::vec3 scale = { 1.0f, 1.0f, 1.0f };
-
+		
 
 		struct MeshBinding {
 			ResourceHandle<Mesh>    mesh;
-			ResourceHandle<Texture> texture;  // correct texture for this primitive
+			ResourceHandle<Texture> albedo;  // correct texture for this primitive
+			ResourceHandle<Texture> metallicRoughness;
+			ResourceHandle<Texture> normal;
+			ResourceHandle<Texture> occlusion;
+			ResourceHandle<Texture> emissive;
+			MaterialData materialData;
 		};
 		std::vector<MeshBinding> meshBindings;
 		ResourceHandle<Material> material;
 
 
 		glm::mat4 getModelMatrix() const {
-			glm::mat4 model = glm::translate(glm::mat4(1.0f), position);
-			model = model * glm::mat4_cast(rotation); // Convert Quat to Mat4 correctly
-			model = glm::scale(model, scale);
+			glm::mat4 translation =
+				glm::translate(glm::mat4(1.0f), position);
+
+			// Convert Euler angles -> Quaternion internally
+			glm::quat quatRotation = glm::quat(rotation);
+
+			glm::mat4 rotationMat =
+				glm::mat4_cast(quatRotation);
+
+			glm::mat4 scaleMat =
+				glm::scale(glm::mat4(1.0f), scale);
+
+			glm::mat4 model =
+				translation * rotationMat * scaleMat;
+ 
 			return model;
 		}
+
+		 
+
+
 	};
 
 
@@ -42,7 +63,8 @@ namespace CRATER::Resource {
 			Renderer::VulkanSwapChain* swapChain,
 			vk::Format format,
 			VmaAllocator allocator,
-			ResourceManager* resourceManager
+			ResourceManager* resourceManager,
+			slang::IGlobalSession* slangSession
 		) :Resource(id),m_id(id),
 			m_path(ktxPath),
 			m_device(device),
@@ -77,7 +99,7 @@ namespace CRATER::Resource {
 
 			auto shaderPath = "D:/vkguide/VkRE/shaders/skybox.slang";
 
-			m_skyboxShader=resourceManager->Load<Shader>(id,&m_device->logicalDevice(), m_swapChain, format, PipelineType::Skybox, shaderPath, "vertMain", "fragMain");
+			m_skyboxShader=resourceManager->Load<Shader>(id,&m_device->logicalDevice(), m_swapChain, format, PipelineType::Skybox,slangSession,shaderPath, "vertMain", "fragMain");
  	
 		}
 
@@ -120,6 +142,7 @@ namespace CRATER::Resource {
 		}
  	
 	private:
+		 
 		ResourceHandle<SkyboxTexture> m_texture;
 		ResourceHandle<Shader> m_skyboxShader;
 		SkyboxData skyboxData;

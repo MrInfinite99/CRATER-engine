@@ -115,6 +115,12 @@ namespace CRATER::Resource {
             }
         }
 
+        // Returns a handle to an already-cached resource without re-loading it.
+        template<typename T>
+        ResourceHandle<T> GetHandle(const std::string& id) {
+            return ResourceHandle<T>(id, this);
+        }
+
         void UnloadAll() {
             for (auto& [type, typeCache] : cache) {
                 for (auto& [id, data] : typeCache) {
