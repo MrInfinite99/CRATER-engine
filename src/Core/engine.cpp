@@ -1,4 +1,5 @@
 #include "engine.h"
+#include <imgui_impl_sdl3.h>
 
 namespace CRATER {
 
@@ -7,6 +8,7 @@ namespace CRATER {
 		m_context->init();
 
 		m_renderer = std::make_unique<Renderer::Renderer>(*m_context);
+		m_editor = std::make_unique<UI::Editor>(scene);
 		m_renderer->setup(scene);
 	}
 
@@ -32,7 +34,9 @@ namespace CRATER {
 			}
 		 
 			m_renderer->sync(scene);
-			m_renderer->render(scene);
+			m_renderer->render(scene,
+				[this] {return m_editor->renderUI(); }
+				 );
 			
 		}
 
@@ -44,6 +48,11 @@ namespace CRATER {
 	void Engine::processInput(SDL_Event& e, float deltaTime, CRATER::Scene::Scene& scene) {
 		if (e.type == SDL_EVENT_WINDOW_RESIZED)
 			m_renderer->resized();
-		scene.processEvents(e, deltaTime);
+
+		ImGui_ImplSDL3_ProcessEvent(&e);
+
+		// Don't drive the camera while ImGui is using the mouse/keyboard.
+		if (!(ImGui::GetIO().WantCaptureMouse|| ImGui::GetIO().WantCaptureKeyboard))
+			scene.processEvents(e, deltaTime);
 	}
 }

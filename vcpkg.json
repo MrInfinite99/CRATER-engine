@@ -2,7 +2,14 @@
   "dependencies": [
     "entt",
     "glm",
-    "imgui",
+    {
+      "name": "imgui",
+      "features": [
+        "docking-experimental",
+        "sdl3-binding",
+        "vulkan-binding"
+      ]
+    },
     "ktx",
     {
       "name": "sdl3",

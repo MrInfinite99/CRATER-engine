@@ -55,8 +55,13 @@ set(RESOURCES
 
 set(SCENE
     src/Scene/Scene.cpp
-    src/Scene/RenderSystem.cpp
+   
     src/Scene/systems/camera_system.cpp
+)
+
+set(UI
+    src/imgui/imguiVulkan.cpp
+    src/imgui/editor.cpp
 )
 
 set(EXTERNAL
@@ -72,6 +77,7 @@ add_executable(${PROJECT_NAME}
     ${RENDERER}
     ${RESOURCES}
     ${SCENE}
+    ${UI}
     ${EXTERNAL}
 )
 

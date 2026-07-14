@@ -1,6 +1,8 @@
 #pragma once
 #include "../graphics/Renderer/vulkanContext.h"
 #include "../graphics/Renderer/renderer.h"
+#include"../imgui/editor.h"
+ 
 
 namespace CRATER {
 	class Engine {
@@ -18,5 +20,6 @@ namespace CRATER {
 
 		std::unique_ptr<Renderer::VulkanContext> m_context;
 		std::unique_ptr<Renderer::Renderer>      m_renderer;
+		std::unique_ptr<UI::Editor>				 m_editor;
 	};
 }

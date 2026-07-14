@@ -4,6 +4,7 @@
 
 namespace CRATER::Renderer
 {
+
 	static void createFallbackTexture(
 		Resource::ResourceManager& rm,
 		const std::string& id,
@@ -60,9 +61,15 @@ namespace CRATER::Renderer
 		createFallbackTexture(resourceManager, "__fallback_white",  255, 255, 255, 255, m_ctx.allocator, &m_ctx.device);
 		createFallbackTexture(resourceManager, "__fallback_normal", 128, 128, 255, 255, m_ctx.allocator, &m_ctx.device);
 		createFallbackTexture(resourceManager, "__fallback_black",    0,   0,   0, 255, m_ctx.allocator, &m_ctx.device);
+
+		 
+		m_imgui.init(m_ctx, m_swapChain);
 	}
 
-	void Renderer::setup(CRATER::Scene::Scene& scene) {
+	void Renderer::setup(Scene::Scene& scene) {
+
+		//m_editor = editor;
+
 		auto view = scene.getRegistry().view<
 			CRATER::Scene::TransformComponent,
 			CRATER::Scene::MeshComponent,
@@ -232,7 +239,7 @@ namespace CRATER::Renderer
 		commandBuffers = vk::raii::CommandBuffers(m_ctx.device.logicalDevice(), allocInfo);
 	}
 
-	void Renderer::recordCommandBuffer(uint32_t imageIndex) {
+	void Renderer::recordCommandBuffer(uint32_t imageIndex ) {
 		auto& commandBuffer = commandBuffers[frameIndex];
 		commandBuffer.begin({});
 
@@ -295,6 +302,22 @@ namespace CRATER::Renderer
 		recordSkyboxPass(commandBuffer);
 
 		commandBuffer.endRendering();
+
+		// Make the scene's color writes visible to the UI pass's load (separate
+		// rendering scopes on the same attachment aren't implicitly synchronized).
+		transition_image_layout(
+			m_swapChain.image(imageIndex),
+			vk::ImageLayout::eColorAttachmentOptimal,
+			vk::ImageLayout::eColorAttachmentOptimal,
+			vk::AccessFlagBits2::eColorAttachmentWrite,
+			vk::AccessFlagBits2::eColorAttachmentWrite | vk::AccessFlagBits2::eColorAttachmentRead,
+			vk::PipelineStageFlagBits2::eColorAttachmentOutput,
+			vk::PipelineStageFlagBits2::eColorAttachmentOutput,
+			vk::ImageAspectFlagBits::eColor
+		);
+
+		// UI is drawn on top of the resolved scene, in its own load-op scope.
+		recordUIPass(commandBuffer, imageIndex);
 
 		transition_image_layout(
 			m_swapChain.image(imageIndex),
@@ -387,6 +410,27 @@ namespace CRATER::Renderer
 		);
 	}
 
+	void Renderer::recordUIPass(vk::raii::CommandBuffer& commandBuffer, uint32_t imageIndex)
+	{
+		vk::RenderingAttachmentInfo colorAttachment{
+			.imageView   = m_swapChain.imageView(imageIndex),
+			.imageLayout = vk::ImageLayout::eColorAttachmentOptimal,
+			.loadOp      = vk::AttachmentLoadOp::eLoad,      // keep the scene already drawn this frame
+			.storeOp     = vk::AttachmentStoreOp::eStore
+		};
+
+		vk::RenderingInfo renderingInfo{
+			.renderArea           = {.offset = {0, 0}, .extent = m_swapChain.extent()},
+			.layerCount           = 1,
+			.colorAttachmentCount = 1,
+			.pColorAttachments    = &colorAttachment
+		};
+
+		commandBuffer.beginRendering(renderingInfo);
+		m_imgui.draw(commandBuffer);
+		commandBuffer.endRendering();
+	}
+  
 	void Renderer::transition_image_layout(
 		vk::Image image,
 		vk::ImageLayout oldLayout,
@@ -461,7 +505,7 @@ namespace CRATER::Renderer
 		}
 	}
 
-	void Renderer::render(CRATER::Scene::Scene& scene) {
+	void Renderer::render(CRATER::Scene::Scene& scene,std::function<void()> renderUI ) {
 		auto fenceResult = m_ctx.device.logicalDevice().waitForFences(
 			*inFlightFences[frameIndex], vk::True, UINT64_MAX);
 
@@ -478,6 +522,11 @@ namespace CRATER::Renderer
 
 		m_ctx.device.logicalDevice().resetFences(*inFlightFences[frameIndex]);
 		commandBuffers[frameIndex].reset();
+
+		m_imgui.beginFrame();
+		renderUI();
+		m_imgui.endFrame();
+
 		recordCommandBuffer(imageIndex);
 
 		// Camera/transform data was gathered in sync(); just upload it for this frame.

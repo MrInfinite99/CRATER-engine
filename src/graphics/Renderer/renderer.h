@@ -5,10 +5,12 @@
 #include "../../Scene/Scene.h"
 #include "../Resources/Object/object.h"
 #include "../Resources/models/model.h"
-
+#include "../../imgui/imguiVulkan.h"
+ 
 #include <slang.h>
 #include <slang-com-ptr.h>
 #include <entt/entt.hpp>
+#include<functional>
 
 namespace CRATER::Renderer
 {
@@ -16,16 +18,22 @@ namespace CRATER::Renderer
 	public:
 		explicit Renderer(VulkanContext& ctx);
 
-		void setup(CRATER::Scene::Scene& scene);
-		void sync(CRATER::Scene::Scene& scene);
-		void render(CRATER::Scene::Scene& scene);
-
+		void setup(Scene::Scene& scene);
+		void sync(Scene::Scene& scene);
+		void render(Scene::Scene& scene, std::function<void()> renderUI);
+	
 		void wait()    { m_ctx.device.logicalDevice().waitIdle(); }
 		void resized() { framebufferResized = true; }
+
+		 
 
 		~Renderer() {}
 		Renderer(const Renderer&) = delete;
 		Renderer& operator=(const Renderer&) = delete;
+
+		VulkanSwapChain& getSwapChain() {
+			return m_swapChain;
+		}
 
 	private:
 		void createCommandPool();
@@ -33,6 +41,8 @@ namespace CRATER::Renderer
 		void recordCommandBuffer(uint32_t imageIndex);
 		void recordOpaquePass(vk::raii::CommandBuffer& commandBuffer);
 		void recordSkyboxPass(vk::raii::CommandBuffer& commandBuffer);
+		void recordUIPass(vk::raii::CommandBuffer& commandBuffer,
+			uint32_t imageIndex);
 		void createSyncObjects();
 
 		void transition_image_layout(
@@ -73,5 +83,8 @@ namespace CRATER::Renderer
 		Resource::ResourceHandle<Resource::Skybox> skyboxHandle;
 
 		UniformBufferObject m_ubo{};   // CPU-side per-frame camera data, populated by sync(), uploaded in render()
+
+		UI::ImGuiVulkan m_imgui{};
+ 
 	};
 }
