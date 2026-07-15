@@ -15,15 +15,15 @@ namespace CRATER::Renderer
 		const uint8_t pixel[4] = { r, g, b, a };
 
 		ktxTextureCreateInfo info{};
-		info.vkFormat        = VK_FORMAT_R8G8B8A8_SRGB;
-		info.baseWidth       = 1;
-		info.baseHeight      = 1;
-		info.baseDepth       = 1;
-		info.numDimensions   = 2;
-		info.numLevels       = 1;
-		info.numLayers       = 1;
-		info.numFaces        = 1;
-		info.isArray         = KTX_FALSE;
+		info.vkFormat = VK_FORMAT_R8G8B8A8_SRGB;
+		info.baseWidth = 1;
+		info.baseHeight = 1;
+		info.baseDepth = 1;
+		info.numDimensions = 2;
+		info.numLevels = 1;
+		info.numLayers = 1;
+		info.numFaces = 1;
+		info.isArray = KTX_FALSE;
 		info.generateMipmaps = KTX_FALSE;
 
 		ktxTexture2* ktx = nullptr;
@@ -34,13 +34,13 @@ namespace CRATER::Renderer
 		ktxTexture_SetImageFromMemory(ktxTexture(ktx), 0, 0, 0, pixel, 4);
 
 		Resource::TextureData td{};
-		td.ktx    = ktx;
-		td.width  = 1;
+		td.ktx = ktx;
+		td.width = 1;
 		td.height = 1;
 		td.levels = 1;
 		td.layers = 1;
 		td.format = vk::Format::eR8G8B8A8Srgb;
-		td.name   = id;
+		td.name = id;
 
 		rm.Load<Resource::Texture>(id, td, allocator, device);
 	}
@@ -58,17 +58,15 @@ namespace CRATER::Renderer
 		createCommandBuffer();
 		createSyncObjects();
 
-		createFallbackTexture(resourceManager, "__fallback_white",  255, 255, 255, 255, m_ctx.allocator, &m_ctx.device);
+		createFallbackTexture(resourceManager, "__fallback_white", 255, 255, 255, 255, m_ctx.allocator, &m_ctx.device);
 		createFallbackTexture(resourceManager, "__fallback_normal", 128, 128, 255, 255, m_ctx.allocator, &m_ctx.device);
-		createFallbackTexture(resourceManager, "__fallback_black",    0,   0,   0, 255, m_ctx.allocator, &m_ctx.device);
+		createFallbackTexture(resourceManager, "__fallback_black", 0, 0, 0, 255, m_ctx.allocator, &m_ctx.device);
 
-		 
+
 		m_imgui.init(m_ctx, m_swapChain);
 	}
 
 	void Renderer::setup(Scene::Scene& scene) {
-
-		//m_editor = editor;
 
 		auto view = scene.getRegistry().view<
 			CRATER::Scene::TransformComponent,
@@ -80,123 +78,13 @@ namespace CRATER::Renderer
 			CRATER::Scene::TransformComponent& transform,
 			CRATER::Scene::MeshComponent& meshComp,
 			CRATER::Scene::MaterialComponent& materialComp)
-		{
-			auto shaderHandle = resourceManager.Load<Resource::Shader>(
-				materialComp.shaderID,
-				&m_ctx.device.logicalDevice(),
-				&m_swapChain,
-				depthTexture.getDepthFormat(),
-				materialComp.type,
-				m_slangSession.get(),
-				materialComp.shaderID,
-				"vertMain",
-				"fragMain"
-			);
-
-			auto modelHandle = resourceManager.Load<Resource::Model>(
-				meshComp.meshID,
-				meshComp.modelPath,
-				&resourceManager,
-				&m_ctx.device,
-				m_ctx.allocator
-			);
-
-			if (!modelHandle.IsValid()) {
-				std::cerr << "[Renderer] Failed to load model: " << meshComp.modelPath << "\n";
-				return;
-			}
-
-			auto materialHandle = resourceManager.Load<Resource::Material>(
-				materialComp.materialID,
-				&m_ctx.device,
-				shaderHandle
-			);
-
-			const auto& textures     = modelHandle->GetTextures();
-			const auto& materialData = modelHandle->GetMaterials();
-
-			Resource::RenderObject renderObj;
-
-			for (const auto& meshHandle : modelHandle->GetMeshes()) {
-				if (!meshHandle.IsValid()) continue;
-
-				const int matIdx = meshHandle->getMaterialIndex();
-
-				Resource::ResourceHandle<Resource::Texture> albedoHandle;
-				Resource::ResourceHandle<Resource::Texture> metallicRoughnessHandle;
-				Resource::ResourceHandle<Resource::Texture> normalHandle;
-				Resource::ResourceHandle<Resource::Texture> occlusionHandle;
-				Resource::ResourceHandle<Resource::Texture> emissiveHandle;
-				Resource::MaterialData md{};
-
-				if (matIdx >= 0 && matIdx < static_cast<int>(materialData.size()) && !materialData.empty()) {
-					const auto& tex = materialData[matIdx];
-					md = tex;
-
-					auto safeTexture = [&](int idx, const char* fallbackId)
-						-> Resource::ResourceHandle<Resource::Texture>
-					{
-						if (idx >= 0 && idx < static_cast<int>(textures.size()) && textures[idx].IsValid())
-							return textures[idx];
-						return resourceManager.GetHandle<Resource::Texture>(fallbackId);
-					};
-
-					albedoHandle            = safeTexture(tex.albedoIndex,            "__fallback_white");
-					metallicRoughnessHandle = safeTexture(tex.metallicRoughnessIndex, "__fallback_white");
-					normalHandle            = safeTexture(tex.normalIndex,            "__fallback_normal");
-					occlusionHandle         = safeTexture(tex.occlusionIndex,         "__fallback_white");
-					emissiveHandle          = safeTexture(tex.emissiveIndex,          "__fallback_black");
+			{
+				if (!loadObjects(entity, transform, meshComp, materialComp)) {
+					std::cerr << "FAILED TO LOAD OBJECT" << "\n";
 				}
+			});
 
-				// Any slot still invalid (no material at all) gets a fallback
-				if (!albedoHandle.IsValid())
-					albedoHandle = resourceManager.GetHandle<Resource::Texture>("__fallback_white");
-				if (!metallicRoughnessHandle.IsValid())
-					metallicRoughnessHandle = resourceManager.GetHandle<Resource::Texture>("__fallback_white");
-				if (!normalHandle.IsValid())
-					normalHandle = resourceManager.GetHandle<Resource::Texture>("__fallback_normal");
-				if (!occlusionHandle.IsValid())
-					occlusionHandle = resourceManager.GetHandle<Resource::Texture>("__fallback_white");
-				if (!emissiveHandle.IsValid())
-					emissiveHandle = resourceManager.GetHandle<Resource::Texture>("__fallback_black");
-
-				renderObj.meshBindings.push_back({
-					meshHandle,
-					albedoHandle,
-					metallicRoughnessHandle,
-					normalHandle,
-					occlusionHandle,
-					emissiveHandle,
-					md
-				});
-			}
-
-			renderObj.position = transform.position;
-			renderObj.rotation = transform.rotation;
-			renderObj.scale    = transform.scale;
-			renderObj.material = materialHandle;
-
-			renderObjects.emplace(entity, std::move(renderObj));
-		});
-
-		std::unordered_set<Resource::Material*> updatedMaterials;
-		for (auto&& [entity, obj] : renderObjects.each()) {
-			auto* mat = obj.material.Get();
-			if (!mat) continue;
-			for (auto& binding : obj.meshBindings) {
-				if (updatedMaterials.find(mat) == updatedMaterials.end()) {
-					for (uint32_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
-						mat->updateDescriptors(m_ctx.device.logicalDevice(), i, uniformBuffer,
-							*binding.albedo,
-							*binding.metallicRoughness,
-							*binding.normal,
-							*binding.occlusion,
-							*binding.emissive);
-					}
-					updatedMaterials.insert(mat);
-				}
-			}
-		}
+		
 
 		auto skyboxView = scene.getRegistry().view<CRATER::Scene::SkyboxComponent>();
 		skyboxView.each([&](CRATER::Scene::SkyboxComponent& skyComp) {
@@ -219,12 +107,141 @@ namespace CRATER::Renderer
 					);
 				}
 			}
-		});
+			});
+	}
+
+	bool Renderer::loadObjects(entt::entity entity,
+		CRATER::Scene::TransformComponent& transform,
+		CRATER::Scene::MeshComponent& meshComp,
+		CRATER::Scene::MaterialComponent& materialComp) {
+
+		auto shaderHandle = resourceManager.Load<Resource::Shader>(
+			materialComp.shaderID,
+			&m_ctx.device.logicalDevice(),
+			&m_swapChain,
+			depthTexture.getDepthFormat(),
+			materialComp.type,
+			m_slangSession.get(),
+			materialComp.shaderID,
+			"vertMain",
+			"fragMain"
+		);
+
+		if (!shaderHandle.IsValid()) {
+			std::cerr << "[Renderer] Failed to load shader: " << materialComp.shaderID << "\n";
+			return false;
+		}
+
+		auto modelHandle = resourceManager.Load<Resource::Model>(
+			meshComp.modelPath,
+			meshComp.modelPath,
+			&resourceManager,
+			&m_ctx.device,
+			m_ctx.allocator
+		);
+
+		if (!modelHandle.IsValid()) {
+			std::cerr << "[Renderer] Failed to load model: " << meshComp.modelPath << "\n";
+			return false;
+		}
+
+		auto materialHandle = resourceManager.Load<Resource::Material>(
+			materialComp.materialID,
+			&m_ctx.device,
+			shaderHandle
+		);
+
+		const auto& textures = modelHandle->GetTextures();
+		const auto& materialData = modelHandle->GetMaterials();
+
+		Resource::RenderObject renderObj;
+
+		for (const auto& meshHandle : modelHandle->GetMeshes()) {
+			if (!meshHandle.IsValid()) continue;
+
+			const int matIdx = meshHandle->getMaterialIndex();
+
+			Resource::ResourceHandle<Resource::Texture> albedoHandle;
+			Resource::ResourceHandle<Resource::Texture> metallicRoughnessHandle;
+			Resource::ResourceHandle<Resource::Texture> normalHandle;
+			Resource::ResourceHandle<Resource::Texture> occlusionHandle;
+			Resource::ResourceHandle<Resource::Texture> emissiveHandle;
+			Resource::MaterialData md{};
+
+			if (matIdx >= 0 && matIdx < static_cast<int>(materialData.size()) && !materialData.empty()) {
+				const auto& tex = materialData[matIdx];
+				md = tex;
+
+				auto safeTexture = [&](int idx, const char* fallbackId)
+					-> Resource::ResourceHandle<Resource::Texture>
+					{
+						if (idx >= 0 && idx < static_cast<int>(textures.size()) && textures[idx].IsValid())
+							return textures[idx];
+						return resourceManager.GetHandle<Resource::Texture>(fallbackId);
+					};
+
+				albedoHandle = safeTexture(tex.albedoIndex, "__fallback_white");
+				metallicRoughnessHandle = safeTexture(tex.metallicRoughnessIndex, "__fallback_white");
+				normalHandle = safeTexture(tex.normalIndex, "__fallback_normal");
+				occlusionHandle = safeTexture(tex.occlusionIndex, "__fallback_white");
+				emissiveHandle = safeTexture(tex.emissiveIndex, "__fallback_black");
+			}
+
+			// Any slot still invalid (no material at all) gets a fallback
+			if (!albedoHandle.IsValid())
+				albedoHandle = resourceManager.GetHandle<Resource::Texture>("__fallback_white");
+			if (!metallicRoughnessHandle.IsValid())
+				metallicRoughnessHandle = resourceManager.GetHandle<Resource::Texture>("__fallback_white");
+			if (!normalHandle.IsValid())
+				normalHandle = resourceManager.GetHandle<Resource::Texture>("__fallback_normal");
+			if (!occlusionHandle.IsValid())
+				occlusionHandle = resourceManager.GetHandle<Resource::Texture>("__fallback_white");
+			if (!emissiveHandle.IsValid())
+				emissiveHandle = resourceManager.GetHandle<Resource::Texture>("__fallback_black");
+
+			renderObj.meshBindings.push_back({
+				meshHandle,
+				albedoHandle,
+				metallicRoughnessHandle,
+				normalHandle,
+				occlusionHandle,
+				emissiveHandle,
+				md
+				});
+		}
+
+		renderObj.position = transform.position;
+		renderObj.rotation = transform.rotation;
+		renderObj.scale = transform.scale;
+		renderObj.material = materialHandle;
+
+		renderObjects.emplace(entity, std::move(renderObj));
+
+		std::unordered_set<Resource::Material*> updatedMaterials;
+		for (auto&& [entity, obj] : renderObjects.each()) {
+			auto* mat = obj.material.Get();
+			if (!mat) continue;
+			for (auto& binding : obj.meshBindings) {
+				if (updatedMaterials.find(mat) == updatedMaterials.end()) {
+					for (uint32_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
+						mat->updateDescriptors(m_ctx.device.logicalDevice(), i, uniformBuffer,
+							*binding.albedo,
+							*binding.metallicRoughness,
+							*binding.normal,
+							*binding.occlusion,
+							*binding.emissive);
+					}
+					updatedMaterials.insert(mat);
+				}
+			}
+		}
+
+		return true;
 	}
 
 	void Renderer::createCommandPool() {
 		vk::CommandPoolCreateInfo poolInfo{
-			.flags            = vk::CommandPoolCreateFlagBits::eResetCommandBuffer,
+			.flags = vk::CommandPoolCreateFlagBits::eResetCommandBuffer,
 			.queueFamilyIndex = m_ctx.device.graphicsIndex()
 		};
 		m_commandPool = vk::raii::CommandPool(m_ctx.device.logicalDevice(), poolInfo);
@@ -232,14 +249,14 @@ namespace CRATER::Renderer
 
 	void Renderer::createCommandBuffer() {
 		vk::CommandBufferAllocateInfo allocInfo{
-			.commandPool        = m_commandPool,
-			.level              = vk::CommandBufferLevel::ePrimary,
+			.commandPool = m_commandPool,
+			.level = vk::CommandBufferLevel::ePrimary,
 			.commandBufferCount = MAX_FRAMES_IN_FLIGHT
 		};
 		commandBuffers = vk::raii::CommandBuffers(m_ctx.device.logicalDevice(), allocInfo);
 	}
 
-	void Renderer::recordCommandBuffer(uint32_t imageIndex ) {
+	void Renderer::recordCommandBuffer(uint32_t imageIndex) {
 		auto& commandBuffer = commandBuffers[frameIndex];
 		commandBuffer.begin({});
 
@@ -269,27 +286,27 @@ namespace CRATER::Renderer
 		vk::ClearValue clearDepth = vk::ClearDepthStencilValue(1.0f, 0);
 
 		vk::RenderingAttachmentInfo attachmentInfo{
-			.imageView   = m_swapChain.imageView(imageIndex),
+			.imageView = m_swapChain.imageView(imageIndex),
 			.imageLayout = vk::ImageLayout::eColorAttachmentOptimal,
-			.loadOp      = vk::AttachmentLoadOp::eClear,
-			.storeOp     = vk::AttachmentStoreOp::eStore,
-			.clearValue  = clearColor
+			.loadOp = vk::AttachmentLoadOp::eClear,
+			.storeOp = vk::AttachmentStoreOp::eStore,
+			.clearValue = clearColor
 		};
 
 		vk::RenderingAttachmentInfo depthAttachmentInfo{
-			.imageView   = depthTexture.depthimageview(),
+			.imageView = depthTexture.depthimageview(),
 			.imageLayout = vk::ImageLayout::eDepthAttachmentOptimal,
-			.loadOp      = vk::AttachmentLoadOp::eClear,
-			.storeOp     = vk::AttachmentStoreOp::eDontCare,
-			.clearValue  = clearDepth
+			.loadOp = vk::AttachmentLoadOp::eClear,
+			.storeOp = vk::AttachmentStoreOp::eDontCare,
+			.clearValue = clearDepth
 		};
 
 		vk::RenderingInfo renderingInfo{
-			.renderArea            = {.offset = {0, 0}, .extent = m_swapChain.extent()},
-			.layerCount            = 1,
-			.colorAttachmentCount  = 1,
-			.pColorAttachments     = &attachmentInfo,
-			.pDepthAttachment      = &depthAttachmentInfo
+			.renderArea = {.offset = {0, 0}, .extent = m_swapChain.extent()},
+			.layerCount = 1,
+			.colorAttachmentCount = 1,
+			.pColorAttachments = &attachmentInfo,
+			.pDepthAttachment = &depthAttachmentInfo
 		};
 
 		commandBuffer.beginRendering(renderingInfo);
@@ -356,17 +373,17 @@ namespace CRATER::Renderer
 
 			for (auto& binding : obj.meshBindings) {
 				commandBuffer.bindVertexBuffers(0,
-					static_cast<vk::Buffer>(binding.mesh.Get()->getVertexBuffer().get()), {0});
+					static_cast<vk::Buffer>(binding.mesh.Get()->getVertexBuffer().get()), { 0 });
 				commandBuffer.bindIndexBuffer(
 					static_cast<vk::Buffer>(binding.mesh.Get()->getIndexBuffer().get()),
 					0, vk::IndexType::eUint32);
 
 				StandardPushConstants pc{};
-				pc.model            = obj.getModelMatrix();
-				pc.baseColorFactor  = binding.materialData.baseColorFactor;
-				pc.metallicFactor   = binding.materialData.metallicFactor;
-				pc.roughnessFactor  = binding.materialData.roughnessFactor;
-				pc.alphaMaskCutoff  = binding.materialData.alphaCutoff;
+				pc.model = obj.getModelMatrix();
+				pc.baseColorFactor = binding.materialData.baseColorFactor;
+				pc.metallicFactor = binding.materialData.metallicFactor;
+				pc.roughnessFactor = binding.materialData.roughnessFactor;
+				pc.alphaMaskCutoff = binding.materialData.alphaCutoff;
 				commandBuffer.pushConstants<StandardPushConstants>(
 					*obj.material.Get()->getShader()->layout().layout(),
 					vk::ShaderStageFlagBits::eVertex | vk::ShaderStageFlagBits::eFragment,
@@ -400,7 +417,7 @@ namespace CRATER::Renderer
 		));
 		commandBuffer.setScissor(0, vk::Rect2D(vk::Offset2D(0, 0), m_swapChain.extent()));
 		commandBuffer.bindVertexBuffers(0,
-			static_cast<vk::Buffer>(skybox->getVertexBuffer().get()), {0});
+			static_cast<vk::Buffer>(skybox->getVertexBuffer().get()), { 0 });
 		commandBuffer.bindIndexBuffer(
 			static_cast<vk::Buffer>(skybox->getIndexBuffer().get()),
 			0, vk::IndexType::eUint32);
@@ -413,24 +430,24 @@ namespace CRATER::Renderer
 	void Renderer::recordUIPass(vk::raii::CommandBuffer& commandBuffer, uint32_t imageIndex)
 	{
 		vk::RenderingAttachmentInfo colorAttachment{
-			.imageView   = m_swapChain.imageView(imageIndex),
+			.imageView = m_swapChain.imageView(imageIndex),
 			.imageLayout = vk::ImageLayout::eColorAttachmentOptimal,
-			.loadOp      = vk::AttachmentLoadOp::eLoad,      // keep the scene already drawn this frame
-			.storeOp     = vk::AttachmentStoreOp::eStore
+			.loadOp = vk::AttachmentLoadOp::eLoad,      // keep the scene already drawn this frame
+			.storeOp = vk::AttachmentStoreOp::eStore
 		};
 
 		vk::RenderingInfo renderingInfo{
-			.renderArea           = {.offset = {0, 0}, .extent = m_swapChain.extent()},
-			.layerCount           = 1,
+			.renderArea = {.offset = {0, 0}, .extent = m_swapChain.extent()},
+			.layerCount = 1,
 			.colorAttachmentCount = 1,
-			.pColorAttachments    = &colorAttachment
+			.pColorAttachments = &colorAttachment
 		};
 
 		commandBuffer.beginRendering(renderingInfo);
 		m_imgui.draw(commandBuffer);
 		commandBuffer.endRendering();
 	}
-  
+
 	void Renderer::transition_image_layout(
 		vk::Image image,
 		vk::ImageLayout oldLayout,
@@ -442,27 +459,27 @@ namespace CRATER::Renderer
 		vk::ImageAspectFlags image_aspect_flags)
 	{
 		vk::ImageMemoryBarrier2 barrier{
-			.srcStageMask  = srcStageMask,
+			.srcStageMask = srcStageMask,
 			.srcAccessMask = srcAccessMask,
-			.dstStageMask  = dstStageMask,
+			.dstStageMask = dstStageMask,
 			.dstAccessMask = dstAccessMask,
-			.oldLayout     = oldLayout,
-			.newLayout     = newLayout,
+			.oldLayout = oldLayout,
+			.newLayout = newLayout,
 			.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
 			.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-			.image         = image,
+			.image = image,
 			.subresourceRange = {
-				.aspectMask     = image_aspect_flags,
-				.baseMipLevel   = 0,
-				.levelCount     = 1,
+				.aspectMask = image_aspect_flags,
+				.baseMipLevel = 0,
+				.levelCount = 1,
 				.baseArrayLayer = 0,
-				.layerCount     = 1
+				.layerCount = 1
 			}
 		};
 		commandBuffers[frameIndex].pipelineBarrier2(vk::DependencyInfo{
 			.imageMemoryBarrierCount = 1,
-			.pImageMemoryBarriers    = &barrier
-		});
+			.pImageMemoryBarriers = &barrier
+			});
 	}
 
 	void Renderer::createSyncObjects() {
@@ -474,7 +491,7 @@ namespace CRATER::Renderer
 		for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
 			presentCompleteSemaphores.emplace_back(m_ctx.device.logicalDevice(), vk::SemaphoreCreateInfo());
 			inFlightFences.emplace_back(m_ctx.device.logicalDevice(),
-				vk::FenceCreateInfo{.flags = vk::FenceCreateFlagBits::eSignaled});
+				vk::FenceCreateInfo{ .flags = vk::FenceCreateFlagBits::eSignaled });
 		}
 	}
 
@@ -485,29 +502,65 @@ namespace CRATER::Renderer
 			static_cast<float>(m_swapChain.extent().width) /
 			static_cast<float>(m_swapChain.extent().height);
 
-		m_ubo.view   = camera.getViewMatrix();
-		m_ubo.proj   = camera.getProjectionMatrix(aspect, 0.1f, 100.0f);
+		m_ubo.view = camera.getViewMatrix();
+		m_ubo.proj = camera.getProjectionMatrix(aspect, 0.1f, 100.0f);
 		m_ubo.proj[1][1] *= -1;              // Vulkan clip-space Y points down
 		m_ubo.camPos = camera.getPosition();
 
 		// ── Refresh per-object transforms from the ECS ─────────────────────────
 		// renderObjects is a sparse set keyed by entity, so each RenderObject carries
 		// its own key — no parallel list to keep aligned.
-		auto& registry = scene.getRegistry();
-		for (auto&& [entity, ro] : renderObjects.each()) {
-			if (!registry.valid(entity)) continue;
+		auto objects = scene.getRegistry().view<
+			CRATER::Scene::TransformComponent,
+			CRATER::Scene::MeshComponent,
+			CRATER::Scene::MaterialComponent>();
 
+		objects.each([&](entt::entity entity,
+			CRATER::Scene::TransformComponent& transform,
+			CRATER::Scene::MeshComponent& meshComp,
+			CRATER::Scene::MaterialComponent& materialComp){
+			
+				if (!renderObjects.contains(entity)){
+					if (!loadObjects(entity, transform, meshComp, materialComp)) {
+						std::cerr << "FAILED TO RENDER NEW OBJECT" << "\n";
+					}
+				}
+			});
+
+
+		auto& registry = scene.getRegistry();
+		std::vector<entt::entity> dead;
+
+		for (auto&& [entity, ro] : renderObjects.each()) {
+			if (!registry.valid(entity)) {
+				dead.push_back(entity);
+				continue;                                  // dead things get no transform refresh
+			}
 			if (auto* t = registry.try_get<CRATER::Scene::TransformComponent>(entity)) {
 				ro.position = t->GetPosition();
 				ro.rotation = t->GetRotation();
-				ro.scale    = t->GetScale();
+				ro.scale = t->GetScale();
 			}
+		}
+
+		for (auto e : dead) {
+			auto& obj = renderObjects.get(e);
+			m_pendingDeletes.push_back({
+				obj.meshBindings,
+				obj.material,
+				m_frameCount
+				});
+			renderObjects.remove(e);
+			 
 		}
 	}
 
-	void Renderer::render(CRATER::Scene::Scene& scene,std::function<void()> renderUI ) {
+	void Renderer::render(CRATER::Scene::Scene& scene, std::function<void()> renderUI) {
 		auto fenceResult = m_ctx.device.logicalDevice().waitForFences(
 			*inFlightFences[frameIndex], vk::True, UINT64_MAX);
+		//the last frame is rendered
+		//free any resources not in use
+		freeGPUResources();
 
 		auto [result, imageIndex] = m_swapChain.get().acquireNextImage(
 			UINT64_MAX, *presentCompleteSemaphores[frameIndex], nullptr);
@@ -534,23 +587,23 @@ namespace CRATER::Renderer
 
 		vk::PipelineStageFlags waitStage(vk::PipelineStageFlagBits::eColorAttachmentOutput);
 		m_ctx.device.queue()->submit(vk::SubmitInfo{
-			.waitSemaphoreCount   = 1,
-			.pWaitSemaphores      = &*presentCompleteSemaphores[frameIndex],
-			.pWaitDstStageMask    = &waitStage,
-			.commandBufferCount   = 1,
-			.pCommandBuffers      = &*commandBuffers[frameIndex],
+			.waitSemaphoreCount = 1,
+			.pWaitSemaphores = &*presentCompleteSemaphores[frameIndex],
+			.pWaitDstStageMask = &waitStage,
+			.commandBufferCount = 1,
+			.pCommandBuffers = &*commandBuffers[frameIndex],
 			.signalSemaphoreCount = 1,
-			.pSignalSemaphores    = &*renderFinishedSemaphores[imageIndex]
-		}, *inFlightFences[frameIndex]);
+			.pSignalSemaphores = &*renderFinishedSemaphores[imageIndex]
+			}, *inFlightFences[frameIndex]);
 
 		try {
 			result = m_ctx.device.presentqueue()->presentKHR(vk::PresentInfoKHR{
 				.waitSemaphoreCount = 1,
-				.pWaitSemaphores    = &*renderFinishedSemaphores[imageIndex],
-				.swapchainCount     = 1,
-				.pSwapchains        = &*m_swapChain.get(),
-				.pImageIndices      = &imageIndex
-			});
+				.pWaitSemaphores = &*renderFinishedSemaphores[imageIndex],
+				.swapchainCount = 1,
+				.pSwapchains = &*m_swapChain.get(),
+				.pImageIndices = &imageIndex
+				});
 		}
 		catch (const vk::OutOfDateKHRError&) {
 			result = vk::Result::eErrorOutOfDateKHR;
@@ -560,8 +613,8 @@ namespace CRATER::Renderer
 		}
 
 		if (result == vk::Result::eSuboptimalKHR ||
-		    result == vk::Result::eErrorOutOfDateKHR ||
-		    framebufferResized)
+			result == vk::Result::eErrorOutOfDateKHR ||
+			framebufferResized)
 		{
 			framebufferResized = false;
 			m_swapChain.recreateSwapChain(m_ctx.device.logicalDevice(), m_ctx.device.physicalDevice(), m_ctx.surface, m_ctx.window);
@@ -572,5 +625,25 @@ namespace CRATER::Renderer
 		}
 
 		frameIndex = (frameIndex + 1) % MAX_FRAMES_IN_FLIGHT;
+		m_frameCount++;
+	}
+
+	//taking out the trash 
+	void Renderer::freeGPUResources() {
+		std::erase_if(m_pendingDeletes, [&](auto& p) {
+			if (m_frameCount - p.retiredFrame < MAX_FRAMES_IN_FLIGHT) 
+				return false;
+			resourceManager.Release<Resource::Material>(p.material.GetId());
+			for (auto& binding : p.meshBindings) {
+				resourceManager.Release<Resource::Mesh>(binding.mesh.GetId());
+				resourceManager.Release<Resource::Texture>(binding.albedo.GetId());
+				resourceManager.Release<Resource::Texture>(binding.metallicRoughness.GetId());
+				resourceManager.Release<Resource::Texture>(binding.normal.GetId());
+				resourceManager.Release<Resource::Texture>(binding.occlusion.GetId());
+				resourceManager.Release<Resource::Texture>(binding.emissive.GetId());
+			}
+			 
+			return true;
+			});
 	}
 }

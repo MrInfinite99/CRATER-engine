@@ -30,11 +30,7 @@ namespace CRATER::Renderer
 		~Renderer() {}
 		Renderer(const Renderer&) = delete;
 		Renderer& operator=(const Renderer&) = delete;
-
-		VulkanSwapChain& getSwapChain() {
-			return m_swapChain;
-		}
-
+ 
 	private:
 		void createCommandPool();
 		void createCommandBuffer();
@@ -56,6 +52,13 @@ namespace CRATER::Renderer
 			vk::ImageAspectFlags image_aspect_flags
 		);
 
+		bool loadObjects(entt::entity entity,
+			CRATER::Scene::TransformComponent& transform,
+			CRATER::Scene::MeshComponent& meshComp,
+			CRATER::Scene::MaterialComponent& materialComp);
+
+		void freeGPUResources();
+
 		VulkanContext& m_ctx;
 
 		VulkanSwapChain m_swapChain{};
@@ -71,6 +74,14 @@ namespace CRATER::Renderer
 
 		uint32_t frameIndex = 0;
 		bool framebufferResized = false;
+
+		struct PendingDelete {
+			std::vector<Resource::MeshBinding> meshBindings;
+			Resource::ResourceHandle<Resource::Material> material;
+			uint64_t retiredFrame;
+		};
+		std::vector<PendingDelete> m_pendingDeletes;
+		uint64_t m_frameCount = 0;//At an absurd 100,000 fps: still ~5.8 million years of continuous uptime!!!!!
 
 		Slang::ComPtr<slang::IGlobalSession> m_slangSession;
 

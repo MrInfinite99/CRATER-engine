@@ -66,6 +66,7 @@ namespace CRATER::Resource {
 		}
 
 		void doUnload() override {
+			//m_shader.Get()->doUnload();
 			return;
 		}
 

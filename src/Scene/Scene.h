@@ -26,6 +26,10 @@ namespace CRATER::Scene {
 			if (entity) m_Registry.destroy(entity.GetHandle());
 		}
 
+		void DestroyEntity(entt::entity h) { 
+			if (m_Registry.valid(h)) m_Registry.destroy(h);
+		}
+
 	 
 
 		void processEvents(SDL_Event& event, float deltaTime) {

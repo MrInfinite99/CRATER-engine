@@ -3,24 +3,24 @@
 #include"mesh.h"
 
 namespace CRATER::Resource {
-	struct RenderObject {
-		glm::vec3 position = { 0.0f,0.0f,0.0f };
-		glm::vec3 rotation{ 0.0f, 0.0f, 0.0f};
-		glm::vec3 scale = { 1.0f, 1.0f, 1.0f };
-		
 
-		struct MeshBinding {
-			ResourceHandle<Mesh>    mesh;
-			ResourceHandle<Texture> albedo;  // correct texture for this primitive
-			ResourceHandle<Texture> metallicRoughness;
-			ResourceHandle<Texture> normal;
-			ResourceHandle<Texture> occlusion;
-			ResourceHandle<Texture> emissive;
-			MaterialData materialData;
-		};
+	struct MeshBinding {
+		ResourceHandle<Mesh>    mesh;
+		ResourceHandle<Texture> albedo;  // correct texture for this primitive
+		ResourceHandle<Texture> metallicRoughness;
+		ResourceHandle<Texture> normal;
+		ResourceHandle<Texture> occlusion;
+		ResourceHandle<Texture> emissive;
+		MaterialData materialData;
+	};
+	 struct RenderObject {
+	  
 		std::vector<MeshBinding> meshBindings;
 		ResourceHandle<Material> material;
-
+ 
+		glm::vec3 position = { 0.0f,0.0f,0.0f };
+		glm::vec3 rotation{ 0.0f, 0.0f, 0.0f };
+		glm::vec3 scale = { 1.0f, 1.0f, 1.0f };
 
 		glm::mat4 getModelMatrix() const {
 			glm::mat4 translation =
@@ -40,14 +40,12 @@ namespace CRATER::Resource {
  
 			return model;
 		}
-
-		 
-
+ 
 
 	};
 
 
-	struct SkyboxData {//this is really annoying
+	struct SkyboxData { 
 		std::vector<SkyboxVertex> vertices;
 		std::vector<uint32_t> indices;
 		int materialIndex = -1;

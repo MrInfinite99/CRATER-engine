@@ -86,7 +86,7 @@ namespace CRATER::Scene {
 	// Mesh and material are represented by resource identifiers (strings) so the component
 	// does not depend on concrete resource types. Rendering should be implemented in a system.
 	struct MeshComponent {
-		std::string meshID;
+		 
 		std::string modelPath;
 		 
 	};
@@ -94,7 +94,7 @@ namespace CRATER::Scene {
 
 	struct MaterialComponent {
 		std::string materialID;
-		std::string shaderID;
+		std::string shaderID= "D:/vkguide/VkRE/shaders/gooch.slang";
 		PipelineType type= PipelineType::OpaqueMesh;
 	};
 

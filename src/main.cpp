@@ -28,6 +28,8 @@ int main() {
 
 	auto room2 = scene.CreateEntity();
 
+	room2.AddComponent<CRATER::Scene::TagComponent>("helmet");
+
 	room2.AddComponent< CRATER::Scene::TransformComponent>(
 		glm::vec3(2.0f, 2.0f, 2.0f),
 		glm::vec3(0.0f, 0.0f, 0.0f),
@@ -35,7 +37,7 @@ int main() {
 	);
 
 	room2.AddComponent<CRATER::Scene::MeshComponent>(
-		"helmet",
+		 
 		"D:/vkguide/VkRE/models/DamagedHelmet.glb"
 	);
 
@@ -50,6 +52,9 @@ int main() {
 		 "grasslands",
 		"D:/vkguide/VkRE/skybox/grass2.ktx2"
 	);
+
+	skybox.AddComponent<CRATER::Scene::TagComponent>("skybox");
+
 
 	 
 
