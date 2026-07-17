@@ -2,6 +2,7 @@
 #include "../graphics/Renderer/vulkanContext.h"
 #include "../graphics/Renderer/renderer.h"
 #include"../imgui/editor.h"
+#include"logger.h"
  
 
 namespace CRATER {

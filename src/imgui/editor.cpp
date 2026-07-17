@@ -48,23 +48,39 @@ namespace CRATER::UI {
 	void Editor::renderUI() {
 		renderHierarchy();
 		renderInspector();
-		/*ImGui::Begin("Debug");
+		renderTopBar();
+		renderConsole();
+		 
+	}
+
+	void Editor::renderConsole() {
+		ImGui::Begin("Console");
+		if (ImGui::Button("Clear")) Log::clear();
+		ImGui::Separator();
+
+		ImGui::BeginChild("scroll", ImVec2(0, 0), 0, ImGuiWindowFlags_HorizontalScrollbar);
+		for (const auto& line : Log::snapshot()) {       // copy-under-lock accessor
+			ImVec4 col = line.level == Log::Level::Error ? ImVec4(1.0f, 0.4f, 0.4f, 1.0f)
+				: line.level == Log::Level::Warn ? ImVec4(1.0f, 0.8f, 0.4f, 1.0f)
+				: ImVec4(0.8f, 0.8f, 0.8f, 1.0f);
+			ImGui::TextColored(col, "%s", line.text.c_str());
+		}
+		if (ImGui::GetScrollY() >= ImGui::GetScrollMaxY())
+			ImGui::SetScrollHereY(1.0f);                  // auto-scroll only when already at bottom
+		ImGui::EndChild();
+		ImGui::End();
+
+	}
+
+	void Editor::renderTopBar() {
+		ImGui::Begin("Debug");
 
 		ImGuiIO& io = ImGui::GetIO();
 
 		ImGui::Text("%.1f FPS  (%.3f ms/frame)",
 			io.Framerate, 1000.0f / io.Framerate);
 
-		auto& registry = m_scene.getRegistry();
-		ImGui::Text("Entities: %zu",
-			static_cast<size_t>(registry.storage<entt::entity>().size()));
-
-		static int clicks = 0;
-		if (ImGui::Button("Click me")) clicks++;
-		ImGui::SameLine();
-		ImGui::Text("clicked %d times", clicks);
-
-		ImGui::End();*/
+		ImGui::End();
 	}
 
 	void Editor::renderHierarchy() {

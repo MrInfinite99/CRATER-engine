@@ -5,8 +5,8 @@
 #include <glm/gtc/matrix_transform.hpp>
 
 #include <chrono>
-constexpr uint32_t WIDTH = 800;
-constexpr uint32_t HEIGHT = 600;
+constexpr uint32_t WIDTH = 1280;
+constexpr uint32_t HEIGHT = 720;
 constexpr int MAX_FRAMES_IN_FLIGHT = 2;
 
 struct UniformBufferObject {

@@ -1,5 +1,6 @@
 #include "vulkanContext.h"
 #include <SDL3/SDL_vulkan.h>
+#include"../../Core/logger.h"
 
 namespace CRATER::Renderer {
 
@@ -9,8 +10,20 @@ static VKAPI_ATTR vk::Bool32 VKAPI_CALL debugCallback(
     const vk::DebugUtilsMessengerCallbackDataEXT* pCallbackData,
     void*)
 {
-    std::cerr << "validation layer: type " << to_string(type)
-              << " msg: " << pCallbackData->pMessage << "\n";
+   
+    Log::Level lvl{};
+    
+    if (severity == vk::DebugUtilsMessageSeverityFlagBitsEXT::eError) {
+        lvl = Log::Level::Error;
+    }
+    else if (severity == vk::DebugUtilsMessageSeverityFlagBitsEXT::eInfo) {
+        lvl = Log::Level::Info;
+    }
+    else if (severity == vk::DebugUtilsMessageSeverityFlagBitsEXT::eWarning) {
+        lvl = Log::Level::Warn;
+    }
+    Log::write(lvl, "validation layer : type + " + to_string(type) + pCallbackData->pMessage);
+               
     return vk::False;
 }
 

@@ -1,5 +1,6 @@
 #pragma once
 #include"../Scene/Scene.h"
+#include"../Core/logger.h"
 
 
 namespace CRATER::UI {
@@ -21,6 +22,8 @@ namespace CRATER::UI {
 
 		void renderHierarchy();
 		void renderInspector();
+		void renderTopBar();
+		void renderConsole();
 		void drawCreateEntityPopup();
 	 
 	public:

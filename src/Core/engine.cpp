@@ -4,6 +4,11 @@
 namespace CRATER {
 
 	void Engine::init(CRATER::Scene::Scene& scene) {
+		static LogStreambuf errCapture{ Log::Level::Error, std::cerr.rdbuf() };
+		static LogStreambuf outCapture{ Log::Level::Info,  std::cout.rdbuf() };
+		std::cerr.rdbuf(&errCapture);
+		std::cout.rdbuf(&outCapture);
+
 		m_context = std::make_unique<Renderer::VulkanContext>();
 		m_context->init();
 
@@ -26,10 +31,13 @@ namespace CRATER {
 			auto currentTime = std::chrono::high_resolution_clock::now();
 			float deltaTime  = std::chrono::duration<float>(currentTime - lastTime).count();
 			lastTime = currentTime;
-
+			const bool* keys = SDL_GetKeyboardState(nullptr);
 			while (SDL_PollEvent(&e)) {
 				if (e.type == SDL_EVENT_QUIT)
 					running = false;
+				if (keys[SDL_SCANCODE_ESCAPE]) {
+					running = false;
+				}
 				processInput(e, deltaTime, scene);
 			}
 		 
