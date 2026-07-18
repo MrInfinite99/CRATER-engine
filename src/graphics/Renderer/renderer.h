@@ -11,6 +11,7 @@
 #include <slang-com-ptr.h>
 #include <entt/entt.hpp>
 #include<functional>
+#include<tuple>
 
 namespace CRATER::Renderer
 {
@@ -22,7 +23,10 @@ namespace CRATER::Renderer
 		void sync(Scene::Scene& scene);
 		void render(Scene::Scene& scene, std::function<void()> renderUI);
 	
-		void wait()    { m_ctx.device.logicalDevice().waitIdle(); }
+		void wait() {
+			m_ctx.device.logicalDevice().waitIdle();
+			freeGPUResources(true);   // shutdown drain: GPU is idle, release everything pending
+		}
 		void resized() { framebufferResized = true; }
 
 		 
@@ -57,7 +61,7 @@ namespace CRATER::Renderer
 			CRATER::Scene::MeshComponent& meshComp,
 			CRATER::Scene::MaterialComponent& materialComp);
 
-		void freeGPUResources();
+		void freeGPUResources(bool force = false);   // force=true: ignore age (only when device is idle)
 
 		VulkanContext& m_ctx;
 
@@ -75,9 +79,13 @@ namespace CRATER::Renderer
 		uint32_t frameIndex = 0;
 		bool framebufferResized = false;
 
+		// A deferred release order: exactly the three resources loadObjects() loaded
+		// for one entity. Sub-resources (meshes/textures) are NOT listed — the Model
+		// releases its own children in doUnload when its refcount hits zero.
 		struct PendingDelete {
-			std::vector<Resource::MeshBinding> meshBindings;
-			Resource::ResourceHandle<Resource::Material> material;
+			std::string modelId;
+			std::string materialId;
+			std::string shaderId;
 			uint64_t retiredFrame;
 		};
 		std::vector<PendingDelete> m_pendingDeletes;
@@ -90,6 +98,7 @@ namespace CRATER::Renderer
 		PushConstant pushConstant{};
 
 		Resource::ResourceManager resourceManager;
+		 
 		entt::storage<Resource::RenderObject> renderObjects;   // sparse set keyed by entt::entity; O(1) insert/erase, packed iteration
 		Resource::ResourceHandle<Resource::Skybox> skyboxHandle;
 

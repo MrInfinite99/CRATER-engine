@@ -68,7 +68,15 @@ namespace CRATER::Resource {
 	}
 
 	void Model::doUnload() {
-		// Drop the ResourceHandles; the ResourceManager handles Vulkan memory cleanup
+		// Release every sub-resource this model loaded in doLoad — the mirror of its
+		// own Load calls. This runs when the model's refcount hits zero, so the
+		// cascade frees meshes/textures exactly when their owner goes away.
+		// (Clearing the handle vectors alone frees nothing: handles are non-owning.)
+		for (auto& h : meshData)
+			if (h.IsValid()) m_manager->Release<Mesh>(h.GetId());
+		for (auto& h : textureData)
+			if (h.IsValid()) m_manager->Release<Texture>(h.GetId());
+
 		meshData.clear();
 		textureData.clear();
 

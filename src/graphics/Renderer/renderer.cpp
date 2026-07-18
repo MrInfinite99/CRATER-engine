@@ -84,7 +84,7 @@ namespace CRATER::Renderer
 				}
 			});
 
-		
+
 
 		auto skyboxView = scene.getRegistry().view<CRATER::Scene::SkyboxComponent>();
 		skyboxView.each([&](CRATER::Scene::SkyboxComponent& skyComp) {
@@ -214,15 +214,13 @@ namespace CRATER::Renderer
 		renderObj.rotation = transform.rotation;
 		renderObj.scale = transform.scale;
 		renderObj.material = materialHandle;
+		renderObj.model = modelHandle;    // ownership claims — released on delete
+		renderObj.shader = shaderHandle;
 
-		renderObjects.emplace(entity, std::move(renderObj));
-
-		std::unordered_set<Resource::Material*> updatedMaterials;
-		for (auto&& [entity, obj] : renderObjects.each()) {
-			auto* mat = obj.material.Get();
-			if (!mat) continue;
-			for (auto& binding : obj.meshBindings) {
-				if (updatedMaterials.find(mat) == updatedMaterials.end()) {
+		auto* mat = renderObj.material.Get();
+		if (mat) {
+			for (auto& binding : renderObj.meshBindings) {
+				if (!mat->isDescriptorsUpdated()) {
 					for (uint32_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
 						mat->updateDescriptors(m_ctx.device.logicalDevice(), i, uniformBuffer,
 							*binding.albedo,
@@ -231,10 +229,15 @@ namespace CRATER::Renderer
 							*binding.occlusion,
 							*binding.emissive);
 					}
-					updatedMaterials.insert(mat);
+					mat->descriptorsUpdated();
 				}
 			}
 		}
+
+
+		renderObjects.emplace(entity, std::move(renderObj));
+
+
 
 		return true;
 	}
@@ -518,9 +521,9 @@ namespace CRATER::Renderer
 		objects.each([&](entt::entity entity,
 			CRATER::Scene::TransformComponent& transform,
 			CRATER::Scene::MeshComponent& meshComp,
-			CRATER::Scene::MaterialComponent& materialComp){
-			
-				if (!renderObjects.contains(entity)){
+			CRATER::Scene::MaterialComponent& materialComp) {
+
+				if (!renderObjects.contains(entity)) {
 					if (!loadObjects(entity, transform, meshComp, materialComp)) {
 						std::cerr << "FAILED TO RENDER NEW OBJECT" << "\n";
 					}
@@ -546,12 +549,12 @@ namespace CRATER::Renderer
 		for (auto e : dead) {
 			auto& obj = renderObjects.get(e);
 			m_pendingDeletes.push_back({
-				obj.meshBindings,
-				obj.material,
+				obj.model.GetId(),
+				obj.material.GetId(),
+				obj.shader.GetId(),
 				m_frameCount
 				});
 			renderObjects.remove(e);
-			 
 		}
 	}
 
@@ -562,8 +565,17 @@ namespace CRATER::Renderer
 		//free any resources not in use
 		freeGPUResources();
 
-		auto [result, imageIndex] = m_swapChain.get().acquireNextImage(
-			UINT64_MAX, *presentCompleteSemaphores[frameIndex], nullptr);
+		uint32_t imageIndex;
+		vk::Result result;
+
+		try {
+			std::tie(result, imageIndex) = m_swapChain.get().acquireNextImage(
+				UINT64_MAX, *presentCompleteSemaphores[frameIndex], nullptr);
+		}
+		catch (const vk::OutOfDateKHRError&) {
+			result = vk::Result::eErrorOutOfDateKHR;
+		}
+		
 
 		if (result == vk::Result::eErrorOutOfDateKHR) {
 			m_swapChain.recreateSwapChain(m_ctx.device.logicalDevice(), m_ctx.device.physicalDevice(), m_ctx.surface, m_ctx.window);
@@ -628,21 +640,17 @@ namespace CRATER::Renderer
 		m_frameCount++;
 	}
 
-	//taking out the trash 
-	void Renderer::freeGPUResources() {
+	//taking out the trash
+	void Renderer::freeGPUResources(bool force) {
 		std::erase_if(m_pendingDeletes, [&](auto& p) {
-			if (m_frameCount - p.retiredFrame < MAX_FRAMES_IN_FLIGHT) 
+			if (!force && m_frameCount - p.retiredFrame < MAX_FRAMES_IN_FLIGHT)
 				return false;
-			resourceManager.Release<Resource::Material>(p.material.GetId());
-			for (auto& binding : p.meshBindings) {
-				resourceManager.Release<Resource::Mesh>(binding.mesh.GetId());
-				resourceManager.Release<Resource::Texture>(binding.albedo.GetId());
-				resourceManager.Release<Resource::Texture>(binding.metallicRoughness.GetId());
-				resourceManager.Release<Resource::Texture>(binding.normal.GetId());
-				resourceManager.Release<Resource::Texture>(binding.occlusion.GetId());
-				resourceManager.Release<Resource::Texture>(binding.emissive.GetId());
-			}
-			 
+			// Release only what loadObjects() loaded — one Release per Load, same owner.
+			// The Model releases its own meshes/textures in doUnload when it hits zero;
+			// fallback textures belong to the renderer and are never released per-entity.
+			resourceManager.Release<Resource::Material>(p.materialId);
+			resourceManager.Release<Resource::Model>(p.modelId);
+			resourceManager.Release<Resource::Shader>(p.shaderId);
 			return true;
 			});
 	}

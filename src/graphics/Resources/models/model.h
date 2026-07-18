@@ -16,7 +16,19 @@ namespace CRATER::Resource{
 	class Model:public Resource{
 	public:
 
-        ~Model() override { Unload(); }
+        // Local cleanup ONLY — never call Unload()/m_manager from the destructor.
+        // At shutdown this destructor runs while the ResourceManager's cache is
+        // itself being destroyed; Release-ing into that dying map is UB (the exit
+        // stall). Runtime releases go through the manager, which calls Unload()
+        // explicitly BEFORE dropping the resource — the cascade still happens there.
+        ~Model() override {
+            for (auto& td : m_textures) {
+                if (td.ktx) {
+                    ktxTexture_Destroy(ktxTexture(td.ktx));
+                    td.ktx = nullptr;
+                }
+            }
+        }
         Model(const std::string& resourceId,
             const std::string& modelPath,
             ResourceManager* manager,
