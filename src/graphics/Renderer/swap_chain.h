@@ -23,17 +23,26 @@ namespace CRATER::Renderer {
 	 
 
 		void recreateSwapChain(vk::raii::Device& device,vk::raii::PhysicalDevice& physicalDevice, vk::raii::SurfaceKHR& surface, Window& m_window ) {
-			 
-			
-			int width = 0, height = 0;
-			SDL_GetWindowSizeInPixels(m_window.getSDLWindow(), &width, &height);
 
-			while (width == 0 || height == 0) {
+			// Block while the window is minimized / zero-sized. Pump explicitly every
+			// iteration: SDL_WaitEvent(nullptr) leaves events in the queue and skips
+			// pumping when the queue is non-empty — relying on it starves the OS
+			// message queue and the window can never restore. Check the condition on
+			// data refreshed AFTER the pump, and sleep with a timeout so no event
+			// state can wedge us for more than 100ms.
+			for (;;) {
+				SDL_PumpEvents();   // services the OS queue — this is what lets the window restore
+
+				int width = 0, height = 0;
 				SDL_GetWindowSizeInPixels(m_window.getSDLWindow(), &width, &height);
-				SDL_WaitEvent(nullptr);  // Wait for events instead of busy-waiting
+				const bool minimized =
+					(SDL_GetWindowFlags(m_window.getSDLWindow()) & SDL_WINDOW_MINIMIZED) != 0;
+				if (width > 0 && height > 0 && !minimized)
+					break;
+
+				SDL_WaitEventTimeout(nullptr, 100);
 			}
-			
-			
+
 			device.waitIdle();
 			cleanupSwapChain();
 			createSwapChain(device,physicalDevice, surface, m_window);

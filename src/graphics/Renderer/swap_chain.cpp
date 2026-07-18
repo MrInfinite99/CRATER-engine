@@ -85,12 +85,7 @@ namespace CRATER::Renderer {
 		vk::ComponentSwizzle::eIdentity, vk::ComponentSwizzle::eIdentity, vk::ComponentSwizzle::eIdentity, vk::ComponentSwizzle::eIdentity };
 
 		imageViewCreateInfo.subresourceRange = { .aspectMask = vk::ImageAspectFlagBits::eColor, .levelCount = 1, .layerCount = 1 };
-
-		for (auto& image : swapChainImages)
-		{
-			imageViewCreateInfo.image = image;
-		}
-
+ 
 		for (auto& image : swapChainImages)
 		{
 			imageViewCreateInfo.image = image;
